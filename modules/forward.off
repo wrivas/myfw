@@ -1,0 +1,7 @@
+
+
+# FORWARD OFF
+iptables -A FORWARD -m limit --limit 3/hour --limit-burst 2 -j LOG --log-level debug --log-prefix "forward drop :"
+iptables -A FORWARD -j DROP
+echo 0 > /proc/sys/net/ipv4/ip_forward
+$my_forwarding=0;

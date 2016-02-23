@@ -1,0 +1,202 @@
+# 2014.02 started merging input and output for convinience and less code duplication
+
+
+iptables -N in_eth0
+iptables -N in_eth0_allsrc
+iptables -N in_eth0_allpro
+iptables -N in_tun
+iptables -N in_tun_allsrc
+iptables -N in_tun_allpro
+iptables -N in_tun_syslog
+iptables -N in_ppp
+iptables -N in_ppp_allsrc
+iptables -N in_ppp_allpro
+
+
+# localhost
+iptables -A INPUT -i lo -s localhost  -d localhost  -j ACCEPT # localhost
+iptables -A OUTPUT  -o lo -s localhost  -d localhost  -j ACCEPT # localhost
+
+iptables -A INPUT -i lo -s $myip  -d $myip                                                                          -j ACCEPT
+
+# eth0
+iptables -A INPUT -i eth0 -p udp -d $myip --sport 1024:65535       -m state --state NEW -j in_eth0
+iptables -A INPUT -i eth0 -p tcp -d $myip --sport 1024:65535 --syn -m state --state NEW -j in_eth0
+iptables -A INPUT -i eth0 -p udp -d $myip                          -m state --state NEW -j in_eth0_allsrc
+iptables -A INPUT -i eth0 -p tcp -d $myip                    --syn -m state --state NEW -j in_eth0_allsrc
+iptables -A INPUT -i eth0        -d $myip                          -m state --state NEW -j in_eth0_allpro
+
+
+
+# eth0:0
+if ($my_ip2){
+iptables -A INPUT -i eth0 -p udp -d $my_ip2 --sport 1024:65535       -m state --state NEW -j in_eth0
+iptables -A INPUT -i eth0 -p tcp -d $my_ip2 --sport 1024:65535 --syn -m state --state NEW -j in_eth0
+iptables -A INPUT -i eth0 -p udp -d $my_ip2                          -m state --state NEW -j in_eth0_allsrc
+iptables -A INPUT -i eth0 -p tcp -d $my_ip2                    --syn -m state --state NEW -j in_eth0_allsrc
+iptables -A INPUT -i eth0        -d $my_ip2                          -m state --state NEW -j in_eth0_allpro
+iptables -A INPUT -i lo -s $my_ip2  -d $my_ip2                                         -j ACCEPT
+}
+
+# eth1-x
+# foreach my $i ('1','2','3',keys %ifconfig_vlan_numbers){
+# if (${"my_ip_eth".$i}){
+
+# $tempip=${"my_ip_eth".$i};
+# my $tempint="eth".$i;$tempint =~ s!\.!_!g;
+# #print "tempint : $tempint ${hostname}_${tempint}_additionnal\n";
+# my @otherips=@{"${hostname}_${tempint}_additionnal"};
+# print "old using ifconfig_vlan_numbers : defining input rules for eth${i}=$tempint : $tempip @otherips.\n";
+
+
+# iptables -N in_eth${i}
+# iptables -N in_eth${i}_allsrc
+# iptables -N in_eth${i}_allpro
+# foreach my $tempip2 ($tempip,@otherips){
+#     iptables -A INPUT -i eth${i} -p udp -d $tempip2 --sport 1024:65535       -m state --state NEW -j in_eth${i}
+#     iptables -A INPUT -i eth${i} -p tcp -d $tempip2 --sport 1024:65535 --syn -m state --state NEW -j in_eth${i}
+#     iptables -A INPUT -i eth${i} -p udp -d $tempip2                          -m state --state NEW -j in_eth${i}_allsrc
+#     iptables -A INPUT -i eth${i} -p tcp -d $tempip2                    --syn -m state --state NEW -j in_eth${i}_allsrc
+#     iptables -A INPUT -i eth${i}        -d $tempip2                          -m state --state NEW -j in_eth${i}_allpro
+#     iptables -A INPUT -i lo -s $tempip2 -d $tempip2  -m limit --limit 40/s --limit-burst 30 -j OLACCEPT localhost
+# # foreach my $tempip2
+# }
+# #if 
+# }
+# }
+
+
+# bondX and others, both INPUT and OUTPUT
+foreach my $i (keys %ifconfig_more){
+
+    # eth0 already done, hardcoded
+    if ($i eq "eth0"){#print "eth0 already done\n";
+        next
+    }
+    if (${"my_ip_".$i}){
+        $tempip=${"my_ip_".$i};
+    }
+    else     {
+        ${"my_ip_".$i}="0.0.0.0/0";
+    }
+    $tempip=${"my_ip_".$i}; 
+
+        my $tempint=$i;$tempint =~ s!\.!_!g;
+        #print "tempint : $tempint ${hostname}_${tempint}_additionnal\n";
+        my @otherips=@{"${hostname}_${tempint}_additionnal"};
+
+        print "defining input rules for ${i}=$tempint : $tempip @otherips.\n";
+
+    foreach $way ("in","out"){
+    
+iptables -N ${way}_${i}
+iptables -N ${way}_${i}_allsrc
+iptables -N ${way}_${i}_allpro
+    }
+
+
+  foreach my $tempip2 ($tempip,@otherips){
+    iptables -A INPUT -i ${i} -p udp -d $tempip2 --sport 1024:65535 -m state --state NEW -j in_${i}
+    iptables -A INPUT -i ${i} -p tcp -d $tempip2 --sport 1024:65535 -m state --state NEW -j in_${i}
+    iptables -A INPUT -i ${i} -p udp -d $tempip2                    -m state --state NEW -j in_${i}_allsrc
+    iptables -A INPUT -i ${i} -p tcp -d $tempip2                    -m state --state NEW -j in_${i}_allsrc
+    iptables -A INPUT -i ${i}        -d $tempip2                    -m state --state NEW -j in_${i}_allpro
+    iptables -A INPUT -i lo -s $tempip2 -d $tempip2  -m limit --limit 40/s --limit-burst 100 -j OLACCEPT localhost  
+
+    iptables -A OUTPUT -o ${i} -p udp -s $tempip2 --sport 1024:65535 -m state --state NEW -j out_${i}
+    iptables -A OUTPUT -o ${i} -p tcp -s $tempip2 --sport 1024:65535 -m state --state NEW -j out_${i}
+    iptables -A OUTPUT -o ${i} -p udp -s $tempip2                    -m state --state NEW -j out_${i}_allsrc
+    iptables -A OUTPUT -o ${i} -p tcp -s $tempip2                    -m state --state NEW -j out_${i}_allsrc
+    iptables -A OUTPUT -o ${i}        -s $tempip2                    -m state --state NEW -j out_${i}_allpro
+    iptables -A OUTPUT -o lo -s $tempip2 -d $tempip2  -m limit --limit 40/s --limit-burst 100 -j OLACCEPT localhost  
+  
+  } # foreach my $tempip2
+} # foreach my $i
+
+
+### TUN
+# add destination
+iptables -A INPUT -i tun+ -p udp --sport 1024:65535       -m state --state NEW -j in_tun
+iptables -A INPUT -i tun+ -p tcp --sport 1024:65535 --syn -m state --state NEW -j in_tun
+iptables -A INPUT -i tun+ -p udp                          -m state --state NEW -j in_tun_allsrc
+iptables -A INPUT -i tun+ -p tcp                    --syn -m state --state NEW -j in_tun_allsrc
+iptables -A INPUT -i tun+                                 -m state --state NEW -j in_tun_allpro
+
+
+
+# syslog
+iptables -A INPUT -i tun+ -p udp --sport 514       -m state --state NEW -j in_tun_syslog
+iptables -A INPUT -i tun+ -p tcp --sport 514 --syn -m state --state NEW -j in_tun_syslog
+
+### ppp
+# add destination
+iptables -A INPUT -i ppp+ -p udp --sport 1024:65535       -m state --state NEW -j in_ppp
+iptables -A INPUT -i ppp+ -p tcp --sport 1024:65535 --syn -m state --state NEW -j in_ppp
+iptables -A INPUT -i ppp+ -p udp                          -m state --state NEW -j in_ppp_allsrc
+iptables -A INPUT -i ppp+ -p tcp                    --syn -m state --state NEW -j in_ppp_allsrc
+iptables -A INPUT -i ppp+                                 -m state --state NEW -j in_ppp_allpro
+
+
+# all
+
+iptables -N in_all
+iptables -N in_all_allsrc
+iptables -N in_all_allpro
+
+iptables -A INPUT -p udp --sport 1024:65535       -m state --state NEW -j in_all
+iptables -A INPUT -p tcp --sport 1024:65535 --syn -m state --state NEW -j in_all
+iptables -A INPUT -p udp                          -m state --state NEW -j in_all_allsrc
+iptables -A INPUT -p tcp                    --syn -m state --state NEW -j in_all_allsrc
+iptables -A INPUT                                 -m state --state NEW -j in_all_allpro
+
+
+#####################################################################33
+# PREROUTING rules
+
+# iptables -t nat -N pr_in_eth0
+# iptables -t nat -N pr_in_eth0_allsrc
+# iptables -t nat -N pr_in_eth0_allpro
+
+# iptables -t nat -A PREROUTING -i eth0  -p udp --sport 1024:65535       -m state --state NEW -j pr_in_eth0
+# iptables -t nat -A PREROUTING -i eth0  -p tcp --sport 1024:65535 --syn -m state --state NEW -j pr_in_eth0
+# iptables -t nat -A PREROUTING -i eth0  -p udp                          -m state --state NEW -j pr_in_eth0_allsrc
+# iptables -t nat -A PREROUTING -i eth0  -p tcp                    --syn -m state --state NEW -j pr_in_eth0_allsrc
+# iptables -t nat -A PREROUTING -i eth0                                  -m state --state NEW -j pr_in_eth0_allpro
+
+# # eth0:0
+# if ($my_ip2){
+# iptables -t nat -A PREROUTING -i eth0  -p udp --sport 1024:65535       -m state --state NEW -j pr_in_eth0
+# iptables -t nat -A PREROUTING -i eth0  -p tcp --sport 1024:65535 --syn -m state --state NEW -j pr_in_eth0
+# iptables -t nat -A PREROUTING -i eth0  -p udp                          -m state --state NEW -j pr_in_eth0_allsrc
+# iptables -t nat -A PREROUTING -i eth0 -p tcp                     --syn -m state --state NEW -j pr_in_eth0_allsrc
+# iptables -t nat -A PREROUTING -i eth0                                  -m state --state NEW -j pr_in_eth0_allpro
+# }
+
+
+foreach $i (keys %ifconfig_more) {
+    #if ($i eq "eth0")   {        #print "eth0 already done\n";        next;    }
+    print "defining prerouting rules for ${i}...\n";
+       # reduced name interface
+    $ri=$i;
+
+    $ri=~ s/^bond/b/;
+    $ri=~ s/^eth/e/;
+    $ri=~ s/^wlan/w/;
+    $ri=~ s/^veth/ve/;
+    $ri=~ s/^veneth/vn/;
+    $ri=~ s/^vlan/vl/;
+    $ri=~ s/^vmbr/vb/;
+    $ri=~ s/^tap/t/;
+ 
+iptables -t nat -N pr_in_${ri}
+iptables -t nat -N pr_in_${ri}_allsrc
+iptables -t nat -N pr_in_${ri}_allpro
+iptables -t nat -A PREROUTING -i ${ri} -p udp  --sport 1024:65535       -m state --state NEW -j pr_in_${ri}
+iptables -t nat -A PREROUTING -i ${ri} -p tcp  --sport 1024:65535 --syn -m state --state NEW -j pr_in_${ri}
+iptables -t nat -A PREROUTING -i ${ri} -p udp                           -m state --state NEW -j pr_in_${ri}_allsrc
+iptables -t nat -A PREROUTING -i ${ri} -p tcp                     --syn -m state --state NEW -j pr_in_${ri}_allsrc
+iptables -t nat -A PREROUTING -i ${ri}                                  -m state --state NEW -j pr_in_${ri}_allpro
+}
+
+
+

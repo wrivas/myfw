@@ -1,0 +1,430 @@
+# MODULES :
+# (input|output|forward).moyen.destination.usage(rs)?
+# ex : forward.vpn.devsdm.lan
+# ex : ouput.proxy
+# ex : forward.pop.videotron.raph
+
+# must be defined here: 
+# $hostname, $hostname_ssh_port, $domain found in hostname -f
+#
+# might be defined here
+# $hostname2 (alias sur eth0)
+# $hostname_vpn_port
+# $lan_hosts_for_hostname
+# more_lan_hosts_for_fwXXX # to allow traffic
+
+# add forward.on /  forward.reject in config for forwarding hosts
+
+# ssh server for zone
+# lan servers for zone : syslog
+
+#dig +short irc.freenode.net |perl -pe 's/\n/ /g';echo
+#dig +short wwwkeys.pgp.net |perl -pe 's/\n/","/g';echo
+
+#use Sys::Hostname;
+$hostname =`hostname -s`;
+$hostnamef =`hostname -f`;
+chomp $hostname;chomp $hostnamef;
+&display("hostname");&display("hostnamef");
+if (! $hostname){
+#$hf='/etc/hosts';
+    $hf='/etc/mailname';
+    print "hostname unavailable, trying /etc/mailname\n";
+    open(HF,$hf) || die "can't open $hf : $!";
+    while (<HF>) {
+#print;
+	if (/((\w+)\.\w\S+)\s/){ $hostnamef=$1;$hostname=$2; }
+	last;
+    }
+    close HF;
+}
+$hostname  =~ s/-/_/g;
+$hostnamef =~ s/-/_/g;
+
+# ip eth0
+
+$get_eth0=`/sbin/ifconfig eth0`;
+$get_eth0=~ s/.*addr:([\d\.]+).*/$1/s;
+#&display ('get_eth0');
+
+
+
+&display ('hostname');
+&display ('hostnamef');
+
+
+
+$nags=$ipdyn;
+$nags_eth1="192.168.4.0/22";
+$nags_eth2="192.168.5.1";
+$nags_eth3="192.168.4.1";
+$nags_ssh_port="31322";
+$rwx="192.168.4.0/22";
+$lan_hosts_for_nags="192.168.4.0/22";
+
+
+
+$pecos="39.26.12.23";
+
+$albert="192.168.6.2";
+$albert_ssh_port="21578";
+
+
+$dmz="39.26.12.0/28";
+$dmz8d=$dmz;
+$dmzs="45.77.54.0/28";
+$dmz8ds=$dmzs;
+@dmz=($dmz,$dmzs);
+@dmznames=('dmz8d','dmz8ds');
+
+$dekla="45,77,54.113";
+$dekla_ssh_port="12341";
+
+$kaf="39.26.12.27";
+$kaf_ssh_port="21551";
+$kaf_dmz=$holo;
+$kaf_eth1="45,77,54.113";
+$lan_hosts_for_kaf=$holo;
+@ssh_servers_for_holo=("dekla");
+$webserver_for_holo="dekla";
+
+$private192="192.168.0.0/16";
+$private10="10.0.0.0/8";
+$private172="172.16.0.0/12";
+@private1918=($private192,$private10,$private172);
+
+
+### wide
+$wide="0.0.0.0/0.0.0.0";
+
+### wide
+@dns_peer1=("64.69.67.228",'64.69.71.11');
+@dns_risq=("192.26.210.1","206.167.244.5");
+@dns_uunet=("142.77.1.1","142.77.1.5");
+@dns_ontario_hydro=("142.46.1.130","142.46.128.130");
+@dns_provider=(@dns_8d,@dns_vdn,@dns_peer1,@dns_risq,@dns_ontario_hydro,@dns_uunet);
+
+@dns_videotron_cable=('24.201.245.114','24.200.243.242','24.201.245.106','24.200.243.234','24.200.243.250','24.200.241.2');
+#&display('dns_provider');
+
+#pgp.mit.edu
+@keyserver_mit=("18.7.14.139");
+@keyserver_keyserver_pgp_com=("63.251.255.12");
+@keyserver_wwwkeys_pgp_net=("64.71.163.210","65.75.25.34","69.36.241.130","128.197.128.140","129.128.11.98","193.174.13.72","194.171.167.2","195.113.19.82","212.55.198.213");
+@keyserver_search_keyserver_net=("212.35.123.136");
+@keyservers=(@keyserver_keyserver_pgp_com,@keyserver_wwwkeys_pgp_net,@keyserver_search_keyserver_net,@keyserver_mit);
+
+# lyre.mit.edu,  18.53.0.135
+# mirror.kernel.org 204.152.189.120
+#security.debian.org 194.109.137.218  130.89.175.33
+# mirror security  : ftp.rfc822.org  195.71.9.196
+# debian.netfarm.it 151.1.32.182
+# www.backports.org 194.8.57.10
+#debian.moolfreet.com 217.174.203.10
+# debian-mirror.cs.umn.edu 128.101.80.131
+# www.logic.univie.ac.at 131.130.190.41
+# klecker.debian.org 194.109.137.218
+# rama.progeny.com 216.37.55.114
+
+# direct.ca  ,"207.136.80.131",
+# debian.yorku.ca "130.63.236.141",
+# relativity.phy.olemiss.edu (ooffice),"130.74.16.250"
+# free servers  ,"212.27.32.0/19",
+# nagios / woody www.fs.tum.de www.fachschaften.tu-muenchen.de "129.187.202.22",
+# backports 194.8.57.10
+# ip-exchange.de (?) ,"212.123.124.94"  (removed)
+# debian.jones.dk (lrrd) 80.163.221.238
+# http.us.debian.org  216.37.55.114","35.9.37.225","128.101.80.131","204.152.189.120","208.185.25.35"
+
+$debianopengroupeware="213.211.192.142";
+
+@http_us_debian_org=("216.37.55.114","35.9.37.225","128.101.80.131","204.152.189.120","208.185.25.35");
+
+@debian_servers=("18.53.0.135","204.152.189.120","194.109.137.218","130.89.175.33","195.71.9.196","151.1.32.182","194.8.57.10","128.101.80.131","217.174.203.10","131.130.190.41","194.109.137.218","216.37.55.114","207.136.80.131","130.63.236.141","130.74.16.250","212.27.32.0/19","129.187.202.22","194.8.57.10","80.163.221.238",@http_us_debian_org,$debianopengroupeware);
+
+#ftp.nerim.net (christian marillat) 62.4.16.80
+@debian_servers_ftp=("62.4.16.80");
+
+
+# rsync.namerica.gentoo.org.
+@gentoo_rsync_servers=("206.251.252.32","209.47.158.135","216.170.153.145","216.194.67.33","63.150.226.21","66.11.11.187","128.213.5.35","129.89.70.108","132.207.4.160","141.219.155.230","146.186.218.75","204.89.193.10","206.167.194.132","206.169.166.57");
+
+# cvs.sunsite.dk 130.225.247.90, remi (cvs.wxwindows.org)
+$sunsitedk_cvs="130.225.247.90";
+
+# cvs.shorewall.net 206.124.146.177
+$shorewall_cvs="206.124.146.177";
+
+# cvs sf.net
+$sf_cvs="66.35.250.207";
+
+# cvs mutt
+
+# subversions.gnu.org savannah.gnu.org
+$gnu_cvs="199.232.41.3";
+
+# sources.redhat.com
+$redhat_cvs="67.72.78.213";
+
+# cvs.mutt.org
+$mutt_cvs="217.69.76.44";
+
+# cvs ccv
+$ccv_cvs="65.39.231.44";
+
+
+# cpan
+# cpan.sunsite.ualberta.ca 129.128.5.190 
+$ualberta="129.128.5.190";
+
+# theoryx5.uwinnipeg.ca 142.132.65.108 
+$uwinnipeg="142.132.65.108";
+
+@cpan=("uwinnipeg","ualberta");
+
+
+
+# isp / providers
+$videotron1="24.200.0.0/14";
+$videotron2="66.130.0.0/15";
+$videotron3="69.70.0.0/16";
+@videotron=($videotron1,$videotron2,$videotron3,"24.37.0.0/16");
+@sympatico=("65.92.0.0/12","67.68.0.0/13");
+@cidc=("66.158.128.0/19");
+@distributel=("66.38.180.0/22");
+
+# news.vdn.ca -> nntp.wcom.ca. -> nnrp1.uunet.ca.
+$news_vdn="142.77.1.194";
+
+# news.digitalmars.com
+$news_lang_d="63.105.9.61";
+
+# news gmane news.gmane.org sea.gmane.org
+$n_gmane="80.91.224.252";
+
+@news_job=("news_lang_d","news_vdn","n_gmane");
+
+$modarchive="66.139.74.80";
+
+$hotel_valdor="142.217.66.117";
+
+# mail.atredes.com
+$atredes="65.39.231.44";
+$atredes_ssh_port="";
+# mail.megatab.com
+$megatab="206.108.84.5";
+
+# vcctest.com
+$vcctest="69.90.3.133";
+
+
+
+@friendly_isp=(@videotron,@sympatico,@cidc,@distributel,$hotel_valdor);
+
+# razor
+
+$razor="66.151.150.0/26";
+
+@fah=("171.64.122.0/24","171.67.16.0/24","171.67.89.0/24");
+
+# ntp
+
+# time.windows.com 207.46.130.100
+$ntp_windows="207.46.130.100";
+
+# time.nrc.ca tock.utoronto.ca ntp1.cmc.ec.gc.ca 
+@ntp_nrc=("132.246.168.164","132.246.168.148");
+@ntp_gc=("199.212.17.15");
+@ntp_utoronto=("128.100.100.128");
+@ntp_redhat=("66.187.233.4");
+
+@ntp_servers=(@ntp_nrc,@ntp_gc,@ntp_utoronto,@ntp_redhat);
+
+#### im
+
+# msn
+@msn_net=("207.46.0.0/16","65.52.0.0/14");
+$msn_port="1863";
+
+# jabber
+@jabber8d_net=("64.254.227.116");
+$jabber8d_port="5222,5223";
+@jabbernet=("208.245.212.0/23");
+@jabber_net=("208.245.212.0/23");
+$jabber_port="5222,5223";
+
+
+# AIM
+@aol_net=("64.12.0.0/16","64.236.0.0/16","205.188.0.0/16");
+$aol_port="5190";
+
+# YAHOO
+@yahoo_net=("216.136.0.0/16","66.163.160.0/18","216.109.112.0/20","216.155.192.0/20");
+$yahoo_port="80,5050,5080";
+
+#IRC
+# dig +short wwwkeys.pgp.net |perl -pe 's/\n/","/g';echo
+
+# freenode.org = debian.org = linux.org = kde.org =  redhat.com
+@us_freenode_net=("140.211.166.3","140.211.166.4","128.175.60.112");
+@irc_freenode_net=("130.239.18.172","140.211.166.3","140.211.166.4","212.204.214.114","213.28.116.205","82.96.64.2");
+
+@freenode_net=(@us_freenode_net,@irc_freenode_net);
+$freenode_port="6667";
+@undernet=("199.184.165.133","205.188.149.12","206.128.204.115","209.67.60.33","209.221.59.11","216.152.77.10","64.62.96.42","64.235.225.250","64.251.31.225","66.198.160.2");
+
+@legit_scanner=(@undernet,@freenode_net);
+# h323
+$ils_seconix_com="213.193.144.104";
+$ldap_port="389";
+
+# nil
+$nil_port="47806";
+
+# HOMES / MAIL
+
+$cuic_pop3="209.87.232.129";
+$cuic_monitoring="209.87.232.132";
+# pop.iquebec.com
+$pop_iquebec="82.196.4.0/24";
+# pop.videotron.ca
+$pop_videotron="24.201.245.36";
+
+
+
+
+
+$fw_for_holo="kaf";
+
+
+
+
+# evil
+#  2004.06.22  204.101.218.120 nessus sur dekla
+# 123 Compute 123COMP-CA (NET-204-101-218-96-1) 
+# 204.101.218.96 - 204.101.218.127
+
+@evil_hosts=("204.101.218.120");
+
+### fw rules
+
+$LOG="LOG --log-level debug --log-prefix";
+
+
+### MY
+
+
+#$hostname=`hostname -s`;
+#$hostnamef=`hostname -f`;
+#chomp $hostname;
+#chomp $hostnamef;
+$myip=$$hostname;
+&display("myip");
+$my_ip=$myip;
+
+$my_ip2=${$hostname."2"};
+&display("my_ip2");
+
+if ($hostnamef =~ /^\w+\.(\w+)\.\w+/){$my_domain=$1}
+# some hardcoded values for firewalls
+$my_domain="holo" if $hostname eq "kaf";
+
+
+&display("my_domain");
+
+$my_ssh_port=${$hostname."_ssh_port"};
+$my_ssh_port=22 unless $my_ssh_port;
+&display("my_ssh_port");
+
+
+
+
+foreach $i ('1','2','3','4','5','6'){
+${"my_ip_eth".$i}=${$hostname."_eth".$i};
+&display("my_ip_eth".$i);
+}
+
+$my_fw_name=${"fw_for_".$my_domain};
+&display("my_fw_name");
+$my_fw=${$my_fw_name."_eth1"} if $my_fw_name;
+&display("my_fw");
+
+
+if (${"lan_hosts_for_".$hostname}){ $my_lan_hosts=${"lan_hosts_for_".$hostname}
+} else { $my_lan_hosts=$$my_domain}
+
+
+&display("my_lan_hosts");
+
+if (@{"more_lan_hosts_for_".$hostname}){ @my_more_lan_hosts=@{"more_lan_hosts_for_".$hostname}
+} 
+
+&display("my_more_lan_hosts");
+
+
+if (@{"routed_hosts_for_".$hostname}){ 
+   @my_routed_hosts=@{"routed_hosts_for_".$hostname};
+} 
+&display("my_routed_hosts") if @my_routed_hosts;
+
+
+# could be partially detected with 0.0.0.0/0.0.0.0
+if (@{"default_route_interfaces_for_".$hostname}){ 
+   @my_default_route_interfaces=@{"default_route_interfaces_for_".$hostname};
+} else {    @my_default_route_interfaces=("eth0");}
+
+&display("my_default_route_interfaces");
+
+if (@{"interfaces_not_forwarded_to_wide_for_".$hostname}){ 
+   @my_interfaces_not_forwarded_to_wide=@{"interfaces_not_forwarded_to_wide_for_".$hostname};
+} 
+&display("my_interfaces_not_forwarded_to_wide") if @my_interfaces_not_forwarded_to_wide;
+
+
+#print "debug routes\n\n\n";
+foreach (keys %{$hostname."_routes"}){$route{$_}=${$hostname."_routes"}{$_}};
+#foreach (keys %route) {    chomp;  print "route $_ -> $route{$_}\n";   #print "route $_\n";}
+
+foreach (@{$hostname."_removed_routes"}){if (exists $route{$_}){delete $route{$_};print color("green"),"deleted route $_",color("reset"),"\n" ;}}
+
+
+
+@my_lan_servers=@{"lan_servers_for_".$hostname};
+&display("my_lan_hosts");
+
+@my_syslog_clients=@{"syslog_clients_for_".$my_domain};
+&display("my_syslog_clients");
+
+@my_domain_ssh_servers=@{"ssh_servers_for_".$my_domain};
+&display("my_domain_ssh_servers");
+
+if (@{"munin_nodes_for_".$my_domain}){ @my_munin_nodes=@{"munin_nodes_for_".$my_domain}; 
+} else { @my_munin_nodes=@{"ssh_servers_for_".$my_domain}; }
+
+&display("my_munin_nodes");
+
+
+@my_wg=@{"wg_for_".$my_domain};
+&display("my_wg");
+
+
+@my_sysadmin=@{"sysadmin_boxes_for_".$my_domain};
+&display("my_sysadmin");
+
+$my_webserver=${"webserver_for_".$my_domain};
+&display("my_webserver");
+
+$my_jabberserver=${"jabberserver_for_".$my_domain};
+&display("my_jabberserver");
+
+
+$my_ftpserver=${"ftpserver_for_".$my_domain};
+&display("my_ftpserver");
+
+
+@my_mailservers=@{"mailservers_for_".$my_domain};
+&display("my_mailservers");
+
+$my_dnsserver=${"dnsserver_for_".$my_domain};
+&display("my_dnsserver");
+

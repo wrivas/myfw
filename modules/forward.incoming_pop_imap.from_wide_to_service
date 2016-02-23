@@ -1,0 +1,5 @@
+foreach $m (@my_mailservers){
+foreach $int ("e0","tun"){
+iptables -A fwd_${int}_to_e1 -d $$m -p tcp -m multiport --dports 110,143,993,995  -m limit --limit 1/s --limit-burst 20 -j OLACCEPT pop/imap in $m
+}
+}

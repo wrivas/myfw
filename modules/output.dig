@@ -1,0 +1,3 @@
+foreach $proto ("tcp","udp"){
+iptables -A OUTPUT -p $proto --dport 53 -m owner --cmd-owner dig --uid-owner 1000 -m limit --limit 10/m --limit-burst 10  -j OLACCEPT dig
+}

@@ -1,0 +1,2 @@
+iptables -t nat -A POSTROUTING -o eth0 -s $my_lan_hosts -d ! $my_lan_hosts -j MASQUERADE
+

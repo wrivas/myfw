@@ -1,0 +1,107 @@
+
+# some of the output chains are in modules/input
+
+iptables -N out_eth0
+iptables -N out_eth0_allsrc
+iptables -N out_eth0_allpro
+iptables -A OUTPUT -o eth0 -p tcp     -s $myip --sport 1024:65535 --syn -m state --state NEW -j out_eth0
+iptables -A OUTPUT -o eth0 -p udp     -s $myip --sport 1024:65535       -m state --state NEW -j out_eth0
+iptables -A OUTPUT -o eth0 -p tcp     -s $myip                    --syn -m state --state NEW -j out_eth0_allsrc
+iptables -A OUTPUT -o eth0 -p udp     -s $myip                          -m state --state NEW -j out_eth0_allsrc
+iptables -A OUTPUT -o eth0            -s $myip                          -m state --state NEW -j out_eth0_allpro
+iptables -A OUTPUT -o lo -s $myip  -d $myip                                  -j ACCEPT
+
+
+if ($my_ip2) {
+iptables -A OUTPUT -o eth0 -p tcp     -s $my_ip2 --sport 1024:65535 --syn -m state --state NEW -j out_eth0
+iptables -A OUTPUT -o eth0 -p udp     -s $my_ip2 --sport 1024:65535       -m state --state NEW -j out_eth0
+iptables -A OUTPUT -o eth0 -p tcp     -s $my_ip2                    --syn -m state --state NEW -j out_eth0_allsrc
+iptables -A OUTPUT -o eth0 -p udp     -s $my_ip2                          -m state --state NEW -j out_eth0_allsrc
+iptables -A OUTPUT -o eth0            -s $my_ip2                          -m state --state NEW -j out_eth0_allpro
+iptables -A OUTPUT -o lo -s $my_ip2  -d $my_ip2  -j ACCEPT 
+}
+
+
+# foreach my $i ('1','2','3','4',keys %ifconfig_vlan_numbers) {
+# if (${"my_ip_eth".$i}) {
+# iptables -N out_eth$i
+# iptables -N out_eth${i}_allsrc
+# iptables -N out_eth${i}_allpro
+
+# $tempip=${"my_ip_eth".$i};
+# my $tempint="eth".$i;$tempint =~ s!\.!_!g;
+# #print "tempint : $tempint\n";
+# my @otherips= @{"${hostname}_${tempint}_additionnal"};
+# print "defining output rules for eth${i}=$tempint : $tempip @otherips.\n";
+
+# foreach my $tempip2 ($tempip,@otherips){
+# iptables -A OUTPUT -o eth$i -p tcp  -s $tempip2    --sport 1024:65535 --syn -m state --state NEW -j out_eth$i
+# iptables -A OUTPUT -o eth$i -p udp  -s $tempip2    --sport 1024:65535       -m state --state NEW -j out_eth$i
+# iptables -A OUTPUT -o eth$i -p tcp  -s $tempip2                       --syn -m state --state NEW -j out_eth${i}_allsrc
+# iptables -A OUTPUT -o eth$i -p udp  -s $tempip2                             -m state --state NEW -j out_eth${i}_allsrc
+# iptables -A OUTPUT -o eth$i         -s $tempip2                             -m state --state NEW -j out_eth${i}_allpro
+# iptables -A OUTPUT -o lo -s $tempip2  -d $tempip2 -m limit --limit 40/s --limit-burst 30 -j OLACCEPT localhost
+# # foreach my $tempip2
+# }
+# # if
+# }
+# # foreach
+# }
+
+
+
+
+# tun
+iptables -N out_tun
+iptables -N out_tun_allsrc
+iptables -N out_tun_allpro
+
+# should we really list ips ? xavier 2014.03.03
+iptables -A OUTPUT -o tun+ -p tcp     -s 192.168.0.0/16 --sport 1024:65535 --syn -m state --state NEW -j out_tun
+iptables -A OUTPUT -o tun+ -p udp     -s 192.168.0.0/16 --sport 1024:65535       -m state --state NEW -j out_tun
+iptables -A OUTPUT -o tun+ -p tcp     -s 192.168.0.0/16                    --syn -m state --state NEW -j out_tun_allsrc
+iptables -A OUTPUT -o tun+ -p udp     -s 192.168.0.0/16                          -m state --state NEW -j out_tun_allsrc
+iptables -A OUTPUT -o tun+            -s 192.168.0.0/16                          -m state --state NEW -j out_tun_allpro
+iptables -A OUTPUT -o tun+ -p icmp   -s 192.168.0.0/16  -m state --state NEW -j out_tun
+
+iptables -A OUTPUT -o tun+ -p tcp     -s 10.4.0.0/16 --sport 1024:65535 --syn -m state --state NEW -j out_tun
+iptables -A OUTPUT -o tun+ -p udp     -s 10.4.0.0/16 --sport 1024:65535       -m state --state NEW -j out_tun
+iptables -A OUTPUT -o tun+ -p tcp     -s 10.4.0.0/16                    --syn -m state --state NEW -j out_tun_allsrc
+iptables -A OUTPUT -o tun+ -p udp     -s 10.4.0.0/16                          -m state --state NEW -j out_tun_allsrc
+iptables -A OUTPUT -o tun+            -s 10.4.0.0/16                          -m state --state NEW -j out_tun_allpro
+iptables -A OUTPUT -o tun+ -p icmp   -s 10.4.0.0/16  -m state --state NEW -j out_tun
+
+iptables -A OUTPUT -o tun+ -p tcp     -s 10.19.0.0/16 --sport 1024:65535 --syn -m state --state NEW -j out_tun
+iptables -A OUTPUT -o tun+ -p udp     -s 10.19.0.0/16 --sport 1024:65535       -m state --state NEW -j out_tun
+iptables -A OUTPUT -o tun+ -p tcp     -s 10.19.0.0/16                    --syn -m state --state NEW -j out_tun_allsrc
+iptables -A OUTPUT -o tun+ -p udp     -s 10.19.0.0/16                          -m state --state NEW -j out_tun_allsrc
+iptables -A OUTPUT -o tun+            -s 10.19.0.0/16                          -m state --state NEW -j out_tun_allpro
+iptables -A OUTPUT -o tun+ -p icmp   -s 10.19.0.0/16  -m state --state NEW -j out_tun
+
+
+# ppp
+
+iptables -N out_ppp
+iptables -N out_ppp_allsrc
+iptables -N out_ppp_allpro
+iptables -A OUTPUT -o ppp+ -p tcp                       --sport 1024:65535 --syn -m state --state NEW -j out_ppp
+iptables -A OUTPUT -o ppp+ -p udp                       --sport 1024:65535       -m state --state NEW -j out_ppp
+iptables -A OUTPUT -o ppp+ -p tcp                                          --syn -m state --state NEW -j out_ppp_allsrc
+iptables -A OUTPUT -o ppp+ -p udp                                                -m state --state NEW -j out_ppp_allsrc
+iptables -A OUTPUT -o ppp+                                                       -m state --state NEW -j out_ppp_allpro
+iptables -A OUTPUT -o ppp+ -p icmp                      -m state --state NEW -j out_ppp
+
+
+# all
+
+iptables -N out_all
+iptables -N out_all_allsrc
+iptables -N out_all_allpro
+
+iptables -A OUTPUT -p udp --sport 1024:65535       -m state --state NEW -j out_all
+iptables -A OUTPUT -p tcp --sport 1024:65535 --syn -m state --state NEW -j out_all
+iptables -A OUTPUT -p udp                          -m state --state NEW -j out_all_allsrc
+iptables -A OUTPUT -p tcp                    --syn -m state --state NEW -j out_all_allsrc
+iptables -A OUTPUT                                 -m state --state NEW -j out_all_allpro
+
+

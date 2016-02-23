@@ -1,0 +1,2 @@
+iptables -A fwd_e1_to_e0 -p tcp -s $albert -d 81.57.34.8 --dport 20300 -m limit --limit 6/m --limit-burst 10  -j OLACCEPT bankiz
+

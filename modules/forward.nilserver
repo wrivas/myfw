@@ -1,0 +1,4 @@
+# phh, nilserver
+foreach $ns ("80.93.34.120","209.92.33.172"){
+iptables -A fwd_e1_to_e0 -p tcp -s $albert -d $ns --dport 47806  -m limit --limit 6/m --limit-burst 10  -j OLACCEPT nil
+}

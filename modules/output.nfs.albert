@@ -1,0 +1,6 @@
+foreach $nfs_server ($albert){
+foreach $proto ("tcp","udp"){
+# sport < 1024 ... :-/
+iptables -A out_eth1_allsrc -p $proto -d $nfs_server  -m limit --limit 3/s --limit-burst 60 -j ACCEPT
+}
+}

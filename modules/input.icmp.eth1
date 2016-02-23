@@ -1,0 +1,6 @@
+
+# icmp 
+foreach $icmp_ip ( "$my_lan_hosts" ) {
+iptables -A INPUT -i eth1 -p icmp -s $icmp_ip -d $my_ip_eth1 --icmp-type echo-request -m limit --limit 60/m --limit-burst 10 -j OACCEPT ping
+}
+

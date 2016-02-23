@@ -1,0 +1,13 @@
+
+# dns
+
+# bunip
+foreach my $dns (@dns_8d){
+iptables -A out_eth0 -p udp -d $dns   --dport 53  -m limit --limit 3/s --limit-burst 60 -j OACCEPT dns
+# logged, should not happen a lot 
+iptables -A out_eth0 -p tcp -d $dns   --dport 53  -m limit --limit 3/s --limit-burst 60 -j OLACCEPT dns tcp
+}
+# vdn
+iptables -A out_eth0 -p udp -d 205.205.98.2   --dport 53 -m limit --limit 3/s --limit-burst 60 -j OACCEPT dns
+iptables -A out_eth0 -p udp -d 64.254.224.3   --dport 53 -m limit --limit 3/s --limit-burst 60 -j OACCEPT dns
+

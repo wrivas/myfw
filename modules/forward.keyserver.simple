@@ -1,0 +1,3 @@
+foreach $keyserver (@keyserver_search_keyserver_net,@keyserver_mit){
+iptables -A fwd_e1_to_e0 -p tcp  -m multiport -d $keyserver --dports 11371  -m limit --limit 10/m --limit-burst 50 -j OLACCEPT keyserver
+}

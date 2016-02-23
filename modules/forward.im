@@ -1,0 +1,11 @@
+foreach $im_name ( "freenode","jabber","jabber8d","jabber8dx","jabber_net_fr","jabberno","msn","aol","yahoo","google") {
+
+@im_net=@{$im_name."_net"}; 
+$im_port=${$im_name."_port"};
+
+foreach $ims ( @im_net ) {
+iptables -A fwd_e1_to_e0 -p tcp -d $ims -m multiport --dports $im_port -m limit --limit 1/s --limit-burst 20 -j OLACCEPT $im_name
+}
+
+}
+

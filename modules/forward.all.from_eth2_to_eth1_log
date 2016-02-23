@@ -1,0 +1,2 @@
+iptables -A FORWARD -i eth2 -o eth1  -j OLACCEPT fwd 2->1
+

@@ -1,0 +1,2 @@
+iptables -A fwd_e1_to_e0_allproto -p icmp  --icmp-type echo-request -m limit --limit 10/s --limit-burst 50 -j OLACCEPT icmp fwd
+

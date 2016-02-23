@@ -1,0 +1,45 @@
+# log
+
+# VPN 
+iptables -A INPUT -i tun+  -m limit --limit 1/s --limit-burst 50 -j LOG --log-level debug --log-prefix "reject vpn :"
+iptables -A INPUT -i tun+  -m limit --limit 1/s --limit-burst 50 -j REJECT
+iptables -A INPUT -i tun+  -m limit --limit 10/m --limit-burst 10 -j LOG --log-level debug --log-prefix "drop vpn :"
+iptables -A INPUT -i tun+  -j DROP
+
+
+# DMZ
+
+
+# bof bof... trouver mieux ? le port de vtun ? (tous ?)
+
+# drop potential udp vpn
+foreach $dmzip (@dmz){
+iptables -A INPUT -s $dmzip  -p udp --dport 32768:65535 -m limit --limit 1/s --limit-burst 50 -j LOG --log-level debug --log-prefix "drop udp 8d dmz :"
+iptables -A INPUT -s $dmzip  -p udp --dport 32768:65535 -j DROP
+
+iptables -A INPUT -s $dmzip  -m limit --limit 1/s --limit-burst 50 -j LOG --log-level debug --log-prefix "reject 8d dmz :"
+iptables -A INPUT -s $dmzip  -m limit --limit 1/s --limit-burst 50 -j REJECT
+iptables -A INPUT -s $dmzip  -m limit --limit 10/m --limit-burst 10 -j LOG --log-level debug --log-prefix "drop 8d dmz :"
+iptables -A INPUT -s $dmzip -j DROP
+}
+
+
+# LAN
+
+# drop potential udp vpn
+iptables -A INPUT -s 192.168.0.0/16  -p udp --dport 32768:65535 -m limit --limit 1/s --limit-burst 50 -j LOG --log-level debug --log-prefix "drop udp 8d lan :"
+iptables -A INPUT -s 192.168.0.0/16  -p udp --dport 32768:65535 -j DROP
+
+# should be my_domain only ?
+foreach $lan1 ("192.168.0.0/16","10.19.0.0/16","10.4.0.0/16",$$my_domain){
+iptables -A INPUT -s $lan1 -m limit --limit 1/s --limit-burst 50 -j LOG --log-level debug --log-prefix "reject lan :"
+iptables -A INPUT -s $lan1 -m limit --limit 1/s --limit-burst 50 -j REJECT
+iptables -A INPUT -s $lan1 -m limit --limit 10/m --limit-burst 10 -j LOG --log-level debug --log-prefix "drop lan :"
+iptables -A INPUT -s $lan1 -j DROP
+}
+
+
+# FINAL DROP
+iptables -A INPUT  -m limit --limit 3/s --limit-burst 2 -j LOG --log-level debug --log-prefix "drop :"
+iptables -A INPUT  -j DROP
+

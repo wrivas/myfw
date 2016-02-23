@@ -1,0 +1,24 @@
+
+# pservers
+foreach $cvsroot (@cvs_servers) {
+iptables -A fwd_e1_to_e0 -p tcp  -d ${$cvsroot."_cvs"} --dport 2401  -m limit --limit 50/s --limit-burst 500 -j OLACCEPT pserver $cvsroot
+}
+
+
+# cvs ssh servers
+foreach my $cvs (@cvs_servers_ssh){
+iptables -A fwd_e1_to_e0 -p tcp  -d $$cvs --dport 22  -m limit --limit 30/m --limit-burst 30 -j OLACCEPT ssh $cvs
+}
+
+# bk http://usb-gadget.bkbits.net/
+foreach $bk ("192.132.92.3"){
+iptables -A fwd_e1_to_e0  -p tcp -d $bk  -m multiport  --dports 8080,14690   -m limit --limit  1/s  --limit-burst 20 -j OLACCEPT bk usb
+}
+
+
+# svn
+
+foreach $svnroot (@svn_servers) {
+iptables -A fwd_e1_to_e0 -p tcp  -d ${"svn_".$svnroot} --dport 3690  -m limit --limit 50/s --limit-burst 500 -j OLACCEPT svn $svnroot
+}
+

@@ -1,0 +1,4 @@
+
+foreach $ntpserver ( @ntp_servers) {
+iptables -A out_eth0_allsrc -p udp -d $ntpserver --dport 123 -m owner --uid-owner 0 -m limit --limit 10/m --limit-burst 10 -j OACCEPT ntp
+}

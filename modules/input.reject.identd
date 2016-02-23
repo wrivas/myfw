@@ -1,0 +1,7 @@
+
+# identd
+foreach $if('eth0','tun'){
+iptables -A in_$if -p tcp  --dport 113  -m limit --limit 30/m -j LOG --log-level debug --log-prefix "identd : "
+iptables -A in_$if -p tcp  --dport 113  -m limit --limit 30/m -j REJECT
+}
+

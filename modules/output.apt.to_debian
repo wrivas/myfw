@@ -1,0 +1,10 @@
+
+# daemon for debsecan
+foreach $users ('root','daemon'){
+foreach $ds (@debian_servers){
+iptables -A out_eth0  -p tcp -d $ds  -m multiport  --dports 80   -m owner --uid-owner $users   -m limit --limit  2/s  --limit-burst 40 -j OLACCEPT aptget
+}
+foreach $ds (@debian_servers_ftp){
+iptables -A out_eth0  -p tcp -d $ds  -m multiport  --dports 21   -m owner --uid-owner $users   -m limit --limit  2/s  --limit-burst 40 -j OLACCEPT aptget
+}
+}

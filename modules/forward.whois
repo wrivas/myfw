@@ -1,0 +1,1 @@
+iptables -A fwd_e1_to_e0 -p tcp --dport 43  -m limit --limit 6/m --limit-burst 20 -j OLACCEPT whois

@@ -1,0 +1,5 @@
+# dns
+foreach $proto ("tcp","udp"){
+iptables -A fwd_e1_to_e0 -p $proto --dport 53 -m limit --limit 10/s --limit-burst 50 -j OLACCEPT fwd dns
+}
+

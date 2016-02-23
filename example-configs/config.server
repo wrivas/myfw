@@ -1,0 +1,29 @@
+definitions
+
+# create the chains
+input
+output 
+forward.off
+
+
+input.icmp.dmz
+input.icmp.my_domain
+
+input.ssh
+input.smtp
+
+input.reject
+
+# standard
+output.icmp output.ntp output.mail 
+
+output.gpg
+output.dhcp 
+
+output.dns_server
+
+
+output.fah
+
+output.reject
+

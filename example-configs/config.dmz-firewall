@@ -1,0 +1,40 @@
+definitions.example
+
+# create the chains
+input
+output 
+
+forward.drop.evil.to_dekla
+forward.on
+
+
+forward.dns
+forward.icmp
+forward.mail
+forward.keyserver.simple
+forward.apt.to_debian
+forward.ntp
+
+# services
+forward.incoming_smtp.from_wide_to_service
+forward.incoming_pop_imap.from_wide_to_service
+forward.incoming_http.from_wide_to_service
+forward.incoming_ftp.from_wide_to_service
+
+forward.reject.identd
+
+forward.reject
+
+
+#input.icmp
+input.icmp.eth1
+input.icmp.dmz
+
+input.reject
+
+# standard
+output.dns output.icmp output.ntp output.mail  output.mail.eth1
+
+
+output.reject
+

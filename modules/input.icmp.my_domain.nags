@@ -1,0 +1,5 @@
+foreach $i ('1','2','3'){
+foreach $lan ( $my_domain ) {
+iptables -A in_eth${i}_allproto -p icmp -s $$lan --icmp-type echo-request -m limit --limit 1/s --limit-burst 10 -j OLACCEPT ping $lan
+}
+}

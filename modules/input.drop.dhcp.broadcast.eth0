@@ -1,0 +1,4 @@
+
+iptables -A INPUT -i eth0 -p udp --dport 67 -j DROP
+iptables -A INPUT -i eth0 -p udp --dport 68 -j DROP
+

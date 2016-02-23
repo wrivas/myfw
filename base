@@ -1,0 +1,3778 @@
+#!/usr/bin/perl -w 
+
+# MODULES :
+# (input|output|forward).moyen.to_destination.from_usagers
+# ex : ouput.proxy
+# ex : input.icmp.emris.vpn
+# ex : forward.pop.videotron.raph
+# ex : forward.vpn.icmp.to_lan
+
+
+
+#use strict;
+#use diagnostics;
+
+use Term::ANSIColor;
+use Sys::Syslog;
+use Getopt::Std;
+use POSIX qw(strftime);
+
+require Net::Netmask;
+import  Net::Netmask;
+
+use Fcntl qw(:flock);
+
+#require Net::Netmask;
+#apt-get install libnet-netmask-perl
+
+=pod
+
+=head1 myfw My Firewall
+
+myfw is firewall easy to write rules and optionnal iptables snipets (modules).
+It helps you to build your iptables firewall.
+
+
+A configuration is listing "modules", which are
+containing iptables rules. Thoses modules can contain perl
+code, in order to facilitate writing of rules (think foreach @ntp_servers).
+They can also contain raw iptables commands for kick and easy start.
+Configs can be pre-defined, which is useful if you have multiple machines
+that need the same firewall rules. 
+
+myfw also generate ipac-ng rules, 
+according to iptables chains inserted.
+
+=head1 generic rules
+
+you can define generic rules that will apply to multiple hosts.
+
+ex : jupiter - neptune (http)
+
+this single will create rules for authorising http from jupiter to neptune, and every firewall between them (firewall knows if it should apply the rule based on its routes)
+
+
+modifiers :
+
+nl,np,nsp,nlim,force=hostname,protocol:50,nsip,noint,noint4nat
+
+ jupiter - neptune (nl:http)  # no logging, no limits
+jupiter - neptune (np) # logging, no ports
+jupiter - neptune (nlim:http) # no limits
+ntp or port 123 : to source ports
+jupiter - neptune (nsp:http) : no source ports
+jupiter - neptune (protocol:50,protocol:51)
+jupiter -neptune (force=pluton:ping) # will force to load the rule even if it's not concerned
+jupiter -neptune (nsip:http) no source ip (to use when some dynamic ip unpredictable is obtained)
+
+no int : do not force incoming interface
+
+nsip : no source ip
+
+=head1 details
+
+thoses modules can contain perl code,
+so that you can do :
+
+foreach $ntp (@ntp_servers){
+iptables -A OUTPUT -d $ntp -j ACCEPT
+}
+
+they can also contain raw iptables commands :
+
+iptables -A OUTPUT -d 1.2.3.4 -j ACCEPT
+
+ipac rule file is /usr/local/etc/fw/ipac.out
+
+
+=head1 initialisation
+
+$hostname is mandatory
+
+$my_domain and $$my_domain must exist
+
+could be fixed by forced like this :  $my_domain="example.net" if $hostname eq "jupiter";
+
+
+$myip_eth1 must be the gateway (.1) if this is a routing fw
+
+=head1 bugs
+
+2013.12.06 needs a protection/lockfile to not run multiple times at the same time (will overrite iptables-restore)
+
+2012.09.26 space at the end of a rule will make it fail
+
+2011.03.30 @hostname_eth0_X_additionnal is good only for vlan ips, aliases dont work yet, use $hostname2 for now
+
+calliope is a firewall, air is the name of the network behind calliope :
+
+air - calliope_eth1 (80) will generate a rule with -A fwd_eth1 in it, which is not good
+air - calliope (80) will correctly generate the rule -A in_eth1
+
+
+=head1 special configs
+
+you can write your own modules list in a module named
+config.whatever  . modules written inside this file will be 
+executed.
+
+=head1 installation / download
+
+download myfw-xxx.tgz,
+
+=for html <a href='myfw'>here</a>
+
+extract in /usr/local/etc
+
+so that you have :
+
+/usr/local/etc/fw/base
+
+/usr/local/etc/fw/modules/
+
+cd /usr/local/etc/fw
+
+
+cp modules/definitions.example modules/definitions
+
+=head1 requesit
+
+perl
+
+
+apt-get install libnet-netmask-perl
+
+
+=head1 license
+
+=for html <a href='myfw/fw/LICENSE'>here</a>
+
+=for html <p><a href='myfw/fw/LGPL-2.1'>LGPL-2.1 text available here</a>
+
+=head1 authors / credits
+
+=for html <a href='myfw/fw/AUTHORS'>here</a>
+
+=head1 usage
+
+
+to start :
+./base 
+
+to stop : 
+
+./base stop
+
+
+to stop and keep forward the existing connexions on the fw (dropping the others)
+
+./base -f stop
+
+=head1 options
+
+-e : show iptables commands
+-d : show unprocessed commands (with variables names) (good for debug) . also try ./base -G -d 2>&1 |less
+-t : use iptables-restore mode (default now)
+-T : do NOT use iptables-restore mode, invoke iptables binary line by line
+-n : no execute,dry-run,  just try the script
+-m modules/<module> : will load only that module. convenient for punching holes in firewall
+-R raw command : ./base -R "natch - wide (ping)" ;   ./base -nR "display('hosts_8d')"  
+"-D rules" : show rules 
+-p : definitions only
+
+=head1 developer options
+
+-G debug generic parse (natch - pecos(ping)) . also try rc modules/rules.cloud9 |xargs -i{} ./base -n -R "$i"
+
+-a : accept default rule instead of drop.
+usefull for debug in case the execution is half borked
+
+-c : yet another debug : show what is evaluated
+-l : debug parse
+-v : level debug
+-f : don't touch forward  (/proc/sys/net/ipv4/ip_forward) in case of fw failure
+-o : no cmd-owner
+-s <config-file> : use this special config file
+-i : should use ipac  (or add another option) (this was switched recently, ipac)
+-r : yet another debug
+-p : print config
+-m <perl-script: execute perl script after definitions
+-w : dont cd to /usr/local/etc/fw, use current directory (symlink config from /usr/local/etc/fw). useful to edit fw as a user
+
+should warn if the module is not listed in config
+-h help
+-q quiet  : you can use -q and -n together to test if there is no empty variables
+
+
+-F diff mode # not working
+-j debug diff mode / debug_reformat for iptables-restore file
+-I use iptables -I instead of -A
+
+debug rules : 
+
+./base -n -D rules |tee -a base-n-D-rules`date +.%Y.%m.%d.%H.%M.%S`
+
+# compare 2 sets :
+iptables-save |perl -pe 's/\[\d+.*//' |egrep -v '(2014)' > /tmp/1
+iptables-save |perl -pe 's/\[\d+.*//' |egrep -v '(2014)' |md5sum
+for i in nat filter mangle; do echo --------------$i---------------; iptables -n -L -t $i;echo;echo;done > iptables
+see iptables-L-all-tables-output-tmp
+
+iptables-save |perl -pe 's/\[\d+.*//' |egrep -v '(2014)' | tee  /tmp/1 | md5sum
+# load from local directory instead of /usr/local/etc/fw
+./base -w;iptables-save |perl -pe 's/\[\d+.*//' |egrep -v '(2014)' | tee  /tmp/2 | md5sum 
+
+ a "deprecated module" feature is implemented.
+ #deprecated  in  the module file will show a warning 
+print whole line so you can add some explanation (use <...> instead)
+
+install at boot :
+
+ln -s /usr/local/etc/fw/myfw-if-up-script /etc/network/if-up.d/
+
+or ln -s /usr/local/etc/fw/base /etc/rcS.d/S42fw (not innserv compatible)
+
+or insert '/usr/local/etc/fw/base start' somewhere in your startup scripts (/etc/rc.local)
+
+
+# OLACCEPT : log, accept, overflow log, reject, drop (log when accept, log when overflow)
+
+iptables -A out_eth0 -p tcp -d $jupiter -m multiport --dports  443 -m limit --limit 100/s --limit-burst 40  -j OLACCEPT https
+
+# OACCEPT :       accept, overflow log, reject, drop (log only if overflow)
+# LOGACCEPT : log, accept no limits
+
+
+
+=head1 definitions - getting started
+
+in definition : 
+
+standard definitions :  
+
+$hostname, $hostname_ssh_port, $domain is found with hostname -f
+
+in case the ip is dynamic, write : 
+$hostname_ip="dynamic";
+
+might be defined here :
+$hostname2 (alias sur eth0)
+
+ex : 
+
+my hostname is albert,
+
+i can define $albert :
+
+$albert="192.168.6.2";
+
+my ssh port :
+
+$albert_ssh_port="22";
+
+if dhcp :
+
+$albert_ip="dynamic";
+
+if i have a second ip on eth0 :
+
+$albert2="192.168.2.2";
+
+if i want my_lan_hosts  to be defined :
+
+$lan_hosts_for_albert="192.168.6.0/24";
+
+=head1  files
+
+/usr/local/etc/fw/iptables.out
+
+ipac-ng file : (to be included in ipac.conf :
+rules file = /usr/local/etc/fw/ipac.out)
+
+/usr/local/etc/fw/ipac.out
+
+debug ipac-ng files : 
+
+ipac with iptables chains instead of ipac rules
+/usr/local/etc/fw/ipacchains.out
+
+ipac with iptables chains in comment
+/usr/local/etc/fw/ipacd.out
+
+ipac with full lenght name of the ipac rule
+/usr/local/etc/fw/ipacnames.out
+
+ipac add on for munin
+/usr/local/etc/fw/ipacm.out
+
+real ipac file
+/usr/local/etc/fw/ipac.out
+
+
+=head1 bugs
+
+with myfw, you can do anything you want.
+
+however, already written modules are designed for 
+
+eth0 as primary interface,
+eth1 as lan (as opposed to internet) interface.
+
+not true anymore with so called "rules" 2006.06.20
+
+sometimes this happens : 
+
+Unquoted string "dev" may clash with future reserved word at (eval 1391) line 1.
+Unquoted string "https" may clash with future reserved word at (eval 1391) line 1.
+error : syntax error at (eval 1391) line 1, near "214.43.66.52 ("
+ 
+ code : dev - 214.43.66.52 (https)
+
+rewrite the line again, manually (vs cut/paste). i suspect wierd characters
+
+space at the end of the line !! it causes problems. 2011.04.28
+
+=head1 todo
+
+2015.06.23 get rid of the my_domain mandatory
+2015.03.18 use iptables-apply - a safer way to update iptables remotely instead of iptables-restore, optionnaly
+2015.03.17 aliases should go to the standard chain, not eth0-blabla
+2015.02.04 new parameter : reload-from-previous-file. default at start  ?
+2014.08.29 new keyword : only. ex: only=jupiter for jupiter related only rules (in case we want to add rule in shared/general rule file for convenience)
+2014.03.10 do not write iptables files with stop
+2014.01.10 wait for lock to forbid double run that will create a corrupted iptables-restore
+2013.11.18 if error, print it in history too. and pid in history too.
+2012.11.29 vlan alias eth0.4:new breaks the eth0.4 rule by replacing the standard ip with  aliased ip 
+2011.11.22 optionnally call iptables-apply (a safer way to update iptables remotely), which will ask confirmation
+2011.05.28 quiet mode, print modules only mode, print only unsplitted rules mode
+2011.04.28 remove spaces at the end of the line (see bug 2011.04.28)
+2010.12.16 fwd_e1.227_to_e0 should be befor fwd_e1.227_to_all (usage : reject in fwd_e1.227_to_e0). if 227_to_all is before, it will go this way (roc - wide (113))
+2010.11.16 print date at launch and date at stop
+2010.11.09 natch ! dekla (np) : reject all  . choisir un bon delimiter
+2010.11.09 OREJECT/OLREJECT (ala OACCEPT)
+2010.09.15 print line executed in comment in iptables file (ex : # neptune - jupiter(80) before the iptable rule)
+2010.08.24 no destination ip (ala noint)
+2010.06.04 # eq_priv  small name for forward.on for the 29 log limit in iptables. need to fix that 2010.06.04.
+2009.06.11 add a limit field to limit the nb of connexions (now the default is 40/s 100 burst) : mail especially
+2009.03.16 add force:hostname field (;-)  to force a fw to be concerned about a praticular rule done 2009.04.14
+2009.03.16 add int:tun0 field to force a route to go through a particular interface (tun for ex) # no. please reload fw when new interfaces are comming up (or simply reload firewall in case a new int is brought up). BUT : could be usefull for forcing free for all lan to the internet and not to others lan
+2009.03.02 add -i or something for interactive, if no respons, will load old rulses (in case ssh connexion get cut off)
+2008.09.19  add comments in iptables.out (especially from the initial rules, neptune -jupiter(http) )
+2008.09.19  gprs_rogers - blara (1163) : should print gprs_rogers (instead of ?)
+2008.09.19  arthur - host_vpn (noint)  # would be no interfaces
+2008.09.04  wide - bal2 (1988) - fedsolic(2045) would be nice
+2008.09.04  wide - bal2 - fedsolic(1903) on naum should do wide - athur2 (2045) instead of wide  - fedsolic
+
+2008.09.10  ? waiting for nat to be implemented : usine -trivia | - 70.81.74.81(43099)   ou usine -trivia (nat) - 70.81.74.81(43099)
+  
+2008.09.04  jupiter - ip,ip,ip should work
+
+
+2008.09.04   no need for iptables-restore if failing on iptables-restore (only, not the iptables "standard")
+
+2007.05.03  verifier que stop marche bien
+
+2006.11.08  dmz_in, usine_in, usine(in), or anything so that usine(in) -> dmz(in) works . emris -> dmz_in (ping), dmz_in -> consus (nut), dmz_in -> roc (smtp)... etc
+
+2006.10.04  no limit and log,  
+
+2006.10.04  need a keyword for  log only oflow (OLACCEPT)
+
+2007.08.24 few rules files : rules.internal, rules.public
+
+2007.08.23 net_usine, host_natch, hosts_sysadmins, nets_cloud, 
+
+
+host_pax_acmon
+host_pax est un groupe de hosts...
+i'd rather use net_usine_all , one rule in firewall instead of many for each host
+
+# munin. should be nets_8d. but then the host (ex : gadar) wont include it self
+
+2007.04.20 usine - bunip (53) : apply if host is in usine... ? or not ?
+usine - gaia (samba, nfs) : we don't want this to happen for the dhcp server
+
+2006.06.20  -t default option
+
+2006.06.06  db_cloud_dev="jason"  : db_cloud_dev is not interpreted ; db_cloud_dev="jason,tcd_db"  : works.
+need to check if db_cloud_dev resolv to something before looking for ssh port
+
+
+2005 add an option to not use ipac at all (ipac is slow when using a lot  of rules(7k))
+
+2005 diff mode
+
+
+
+no need to restore with -t : failed import leaves it as is ? : yes, don't restore, it's fine already ! 2006.06.16
+
+
+
+=head1 screenshot
+
+=for html <a href='myfw/fw/myfw.png'>here</a>
+
+
+=head1 changelog
+
+2012.12.04 added histroy feature (calls to base are appended to a file named "history") 
+
+2009.07.08 added nsip field for no source ip
+
+2009.03.16 add force:hostname field (;-)  to force a fw to be concerned about a praticular rule (in particular : eth0 -> tun, not usual) 
+
+2006.10.04  if startup and fail, stop (ARGV[0] = start).
+
+2006.07.04 add flags for :   no limit nlim , no log , no ports  np : 
+
+natch - bunip (nl:u:53) nl : no log no limit
+
+natch - bunip (np) no ports (but still with source port > 1024, icmp not included)
+
+2006.06.20 add a option (-I) to create rules with -I instead of -A (ideal for quick hole punching), warning, this will 
+fail with logging rules, -I place the rule at the top. works great with nl keyword
+
+2006.06.20  no fw with variable (ie no_fw_for_tvm_as)
+
+-i reverse. -i : use ipac
+
+diff mode
+
+
+generic hosts to hosts firewalling 
+
+
+an option to send raw commands, no modules. ex  : ./base -R "natch - paris (ssh,ping)"
+
+1.5 : 
+      release focused on speed improvements
+
+      added the -m option (load a module only, with definitions)
+      (poking holes in the firewall is the typical use of -m)
+
+      added the -t option (load rules using iptables-restore)
+
+      reduce the loading time by a factor of 4 to 20.
+
+      on my box, 3400 rules : from 1min 50 to 3 sec.
+
+      wc -l iptables.out : 3400
+
+./base  21.82s user 46.07s system 61% cpu 1:50.51 total
+
+./base -t  0.98s user 0.37s system 46% cpu 2.920 total
+
+1.2 : first public release
+
+=head1 about myfw
+
+
+I created myfw because i was missing a tool which would allow
+me to do any thing with iptables, yet with possibilities to
+write easily efficient iptables rules.
+
+shorewall was the closest i could try ; i tried, and 
+for what i wanted to do, it limited me. (see OLACCEPT target)
+
+(shorewall itself is good, but is more high level than myfw)
+
+links to myfw :
+
+http://directory.fsf.org/security/firewall/myfw.html
+
+
+=cut
+
+#=head1 following  : special transformations not really usefull
+
+### 
+
+
+#for loops
+#perl -pe 'if(s/for\s+(\S+)\s+in\s+(.*?)\s*;\s*do\s*//g){$n=$1;$v=$2;$v =~ s/(\S+)/\"$1\"/g;$v =~ s/\s+/,/g ; print "foreach \$$n ( $v ) \{\n";} s/done;?/\}\n/g;' output
+#ou perl -ne
+
+
+
+# vars :
+#  perl -pe 's/^[\$\@]//g;s/[\";\(\)]//g;' definitions > /tmp/def.shell
+
+# ###from /servers/
+# # ip
+# grep -A 1 -r eth0 **/*ifconfig |grep inet|perl -ne 'if (m|^(\w+)/.*addr:(\S+) |){print "\$$1=\"$2\"\n"}' 
+
+# # ssh port
+# grep -r Port **/*sshd_config |perl -ne 'if (m|^(\w+)/.*Port\s+(\S+)|){print "\$$1_ssh_port=\"$2\";\n"}'
+
+# # vpn port
+# egrep -r -- '^--server--' **/*vtund-start.conf |perl -ne 'if (m|^(\w+)/.*--server--\s+(\S+)|){print "\$$1_vpn_port=\"$2\";\n"}'
+
+# # from base
+# perl -ne 's/export //g;if (/(.+)=(\S+)\s*$/) {print "\$$1=\"$2\";\n"} elsif (/(.+)=(.+)$/) {$n=$1;$v=$2; $v =~ s/[^\w\.\s]//g;$v =~ s/(\S+)/\"$1\"/g;$v =~ s/\s+/,/g ;print "\@$n=($v);\n"}' **/usr/local/etc/fw/base |sort |uniq
+
+# # from dns 
+#dig +short irc.freenode.net |perl -pe 's/\n/ /g';echo
+#dig +short wwwkeys.pgp.net |perl -pe 's/\n/","/g';echo
+#dig +short irc.debian.org |perl -pe 's/\n/","/g';echo
+
+# # files
+
+# cd /root/cvs/`hostname`/usr/local/etc/fw;rm base;cvs rm base;cvs ci -mn base
+
+# # other configs
+
+# more **/fw/config|less
+
+# # vtun
+
+# egrep '(__.*{|ifconfig ")' **/etc/vtund.conf.nopass | perl -ne 'if(/.*:(\w+) {.*$/){print "\n$1"} if (/.*pointopoint\s+(\S+) .*/){print " $1 "}';echo |sort
+# egrep '(__.*{|ifconfig ")' **/etc/vtund.conf.nopass | perl -ne 'if(/.*:(\w+) {.*$/){print "\n$1"} if (/.*pointopoint\s+(\S+) .*/){print " $1 "}' 2>&1  |grep hector
+
+# # servers vtun
+
+# egrep '(ifconfig ")' **/etc/vtund.conf.nopass |grep -v 192.168.30
+
+# # fwd /input output
+
+# # forward incomming from input 
+# perl -pe 's/in_eth0/fwd_e0_to_e1/;s/out_eth0/fwd_e1_to_e0/;s/\s+-m\s+owner//g;s/\s+--uid-owner\s+\d+//; s/\s+--cmd-owner\s+\w+//'
+
+
+# # forward outgoing to outgoing
+# perl -pe 's/fwd_e1_to_e0/out_eth0/;s/fwd_e0_to_e1/in_eth0/'
+
+# # outgoing to forward
+# perl -pe 's/out_eth0/fwd_e1_to_e0/;s/in_eth0/fwd_e0_to_e1/;s/out_tun/fwd_e1_to_tun/g;s/in_tun/fwd_tun_to_e1/g;s/\s+-m\s+owner//g;s/\s+--uid-owner\s+\d+//g; s/\s+--cmd-owner\s+\S+//g;'
+
+
+
+openlog("fw",'cons,pid', 'user');
+my $msg="fw called";
+$msg.=" with args : @ARGV" if @ARGV;
+my $msg_has_argv_included=1 if @ARGV;
+my $syslog_try=qq/syslog('syslog|debug','$msg');/;
+my $history_file="/usr/local/etc/fw/history";
+$|=1;
+print "trying/waiting to lock for $history_file...";
+open (HISTORY,">>$history_file") || die "cant open $history_file : $!";
+flock(HISTORY,LOCK_EX) or die "cant lock $history_file";
+print "success.\n";
+$|=0;
+
+my $now_string = strftime "%Y.%m.%d %H:%M:%S", localtime;
+print HISTORY "$now_string : $msg\n";
+#print $syslog_try,"\n";
+eval $syslog_try;
+
+our ($opt_h,$opt_d,$opt_r,$opt_c,$opt_e,$opt_a,$opt_l,$opt_v,$opt_f,$opt_o,$opt_s,$opt_i,$opt_p,$opt_t,$opt_T,$opt_m,$opt_n,$opt_q,$opt_R,$opt_G,$opt_F,$opt_j,$opt_I,$opt_w,$opt_D,%gateway,%default_gateway);
+getopts('TIjFGqhdrtcealvwfoipns:m:R:D:');
+
+
+my $booting_the_os=0;
+
+if ($ARGV[0]  && $ARGV[0] eq "start")
+{
+    # supposedly called from rcS.d so print to stdout
+    print "we are at boot time, pid $$, called with @ARGV\n";
+    $booting_the_os=1;
+}
+
+
+# used if -t or -F : differents means to execute iptables
+my $exec_of_iptables=1;
+
+# default mode (old was -t)
+my $use_of_iptables_restore=1;
+
+my $iptables_restore_started=0;
+my $path='.';
+
+my %files;
+my %var;
+
+# contains names of chains created with iptables -N blabla. used to discard rules added to a non existant chain (in case of 
+# misconfiguration, the fw can still load)
+#my %new_chains=("INPUT" => "1","OUTPUT" => "1","FORWARD" => "1",);
+
+# 192.168.142.0/255.255.255.0 -> eth0
+my %route;
+
+# ifconfig 192.168.142.59 -> 1
+my %ifconfig;
+
+my %ifconfig_vlan;
+my %ifconfig_vlan_numbers;
+
+# id -> name
+my %passwd;
+# name -> id
+my %passwdn;
+
+# name -> number
+my %services=("http","80");
+
+
+
+# ipac line -> id (short name)
+my %ipacrules_id;
+
+# ipac line -> "nb and iptables line"
+my %ipacrules_iptables_chains;
+
+
+# ipac line -> "nb and fullname"
+my %ipacrules_full_name;
+
+
+
+# ipac line -> nb
+my %ipacrulesnb;
+
+# total nb of ipac lines
+my $ipacnb=0;
+
+# file specific nb of ipac line
+# file id + nb -> nb
+my %ipac_nb;
+
+# rule order
+my @ipac_lines;
+
+# all, for debug
+my @ipac_lines_iptables;
+
+# iptables-save variables
+my @save_filter;
+my @save_mangle;
+my @save_nat;
+
+my $iptables_save_before_myfw="/usr/local/etc/fw/iptables-save.before.myfw.out";
+$hostname =`hostname -s`;
+$hostnamef =`hostname -f`;
+
+@my_routed_hosts=();
+
+my $config="$path/config";
+if ($opt_s)
+{
+    $config=$opt_s;
+    print "modified config : $config\n";
+
+}
+
+# should not be default
+my $should_restore_if_crash=0;
+
+my $ruleset_is_too_big_to_fit_twice_in_ram=0;
+
+#&execute ($file); # post_death test
+ if ($hostname =~ /(natcho|alberto|mercuryo|avaiki|fortuna|fw1_4)$/)
+{
+    $ruleset_is_too_big_to_fit_twice_in_ram=1;
+    #$should_restore_if_crash=1;
+    #print "should_restore_if_crash=$should_restore_if_crash\n";
+    print "ruleset_is_too_big_to_fit_twice_in_ram=$ruleset_is_too_big_to_fit_twice_in_ram\n" 
+
+    
+}
+
+
+
+
+my $no_cmd_owner=0;
+my $no_uid_owner=0;
+my $old_iptables=0;
+
+my $iptables_version=`/sbin/iptables -V`;
+chomp $iptables_version;
+if ($iptables_version =~ /1.2.6/)
+{ print color("cyan"),"old iptables...innocuous : wont use --cmd-owner",color("reset"),"\n" unless $opt_q;$old_iptables=1;}
+my $kernel_version=`uname -rv`;
+chomp $kernel_version;
+if ($kernel_version =~ /2.4.18/)
+{ print color("cyan"),"old kernel...  innocuous : wont use --cmd-owner",color("reset"),"\n" unless $opt_q;$old_iptables=1;}
+
+if ($kernel_version =~ /smp/i)
+{ print color("cyan"),"smp kernel...  innocuous : wont use --cmd-owner",color("reset"),"\n" unless $opt_q;$no_cmd_owner=1;}
+
+if ($kernel_version =~ /2.6.(\d\d)/ && $1 >= 14)
+{ print color("cyan"),"2.6.$1 kernel...   :  --cmd-owner not supported anymore",color("reset"),"\n" unless $opt_q;$no_cmd_owner=1;}
+
+my $no_limit=0;
+
+if ($kernel_version =~ /sparc64/)
+{ print color("cyan"),"sparc64 kernel...  innocuous : wont use -m limit",color("reset"),"\n" unless $opt_q;$no_limit=1}
+
+
+if ($opt_o){ print color("cyan"),"from command line: wont use --cmd-owner",color("reset"),"\n" unless $opt_q;$old_iptables=1;}
+
+my $out_file="/usr/local/etc/fw/iptables.out";
+my $save_file="/usr/local/etc/fw/iptables-restore.dump";
+
+
+
+sub redefine_out_files{
+    $out_file="/usr/local/etc/fw/iptables.out.singlemodule";
+    $save_file="/usr/local/etc/fw/iptables-restore.dump.singlemodule";
+
+}
+
+
+sub print_usage{
+
+    print "-h help\n-t iptables-restore mode\n";
+}
+
+  
+
+sub open_default_files{
+    # iptables rules. (used for debug)
+    open (OUT,">$out_file") || die "cant open $out_file : $!";
+    # to be installed with iptables-restore
+    open (SAVE,">$save_file") || die "cant open $save_file : $!";
+
+}
+sub execute{
+    my $efile=shift;
+    print OUT "##### $efile\n";
+    print " $efile\n" unless $opt_q;
+    unless (my $return = do $efile) {
+	warn "couldn't parse $efile: $@" if $@;
+	warn "couldn't do $efile: $!"    unless defined $return;
+	warn "couldn't run $efile"       unless $return;
+    }
+}
+
+sub execute_config{
+    my $efile=shift;
+    $efile=$efile;
+    print " $efile\n" unless $opt_q;
+    print OUT "##### $efile\n";
+    my @data=openfile($efile);
+
+    foreach (@data)
+    {
+	chomp;
+	my @list;
+	print "config : $_\n" if $opt_d;
+	
+	/^\s*\#/ && next;
+	s/\s+/ /g;
+	s/\#.*//g;
+	if (/\w\s+\w/)
+	{@list=split / /,$_;}
+	else {push @list,$_;}
+
+	next unless $_;
+
+
+	foreach (@list)
+	{
+
+	    print color("blue")," ./modules/$_",color("reset"),"\n" unless $opt_q;
+	    print OUT "##### $_\n";
+	    if (/^config.\S+$/)
+	    {
+		&execute_config("./modules/$_");
+	    }
+	    else {&executeiptables("./modules/$_");}
+
+	}
+    }
+}
+
+# parser of iptables lines and "rules"
+sub executeiptables{
+    my $efile=shift;
+
+
+    my @data=openfile($efile);
+    my $code;
+    my $counter=0;
+    my $level=0;
+    my $hold=0;
+    foreach (@data)
+    {
+	chomp;
+	if (/^\s*$/) {next;}
+	/^\s*\#\s*(deprecated.*)$/i && print color("red"),"           $1",color("reset"),"\n" unless $opt_q;
+	if (/^\s*\#/) {next;}
+	++$counter;
+ 
+	print "$counter.$level $_\n" if $opt_d;
+
+
+
+	my $line=$_;
+	my $test_line=$_;
+
+
+
+	my $regexp_gp=q|^[\w\d\.,/\s]+?
+	    # host
+	    
+	    # begin route destination
+	    (
+	    
+	     \s*\-\s* 
+
+	     # host
+	     [\d\.\w/]+ 
+
+
+	     # nexts hosts, separated by comma space
+	     (\s*\,\s* [\d\.\w/]+)*?
+	     
+
+	     \s*
+	     # port
+	     #(\([\w;/,\s]+?\))?
+
+	     # port parsing and syntax
+	     # : added for udp u:123
+	     (\([\w,:=\s]+?\))?
+
+	     # end route destination
+	      )+?
+	     
+	     $
+
+             |;
+
+	if ($line =~ /$regexp_gp/x)
+	    
+	{
+	    #print color("red"),"to analyze : $line",color("reset"),"\n";
+	    my @rules_generic=&generic_parse($line);
+	    foreach (@rules_generic)
+	    {
+		#print color("red"),"$_",color("reset"),"\n";
+		#print "$_\n";
+	    }
+
+	    #next; #equiv to abort 
+	    push @data,@rules_generic;
+	    next;
+	    
+	}
+	else {
+	    #print color("red"),"NO analyze : $line",color("reset"),"\n";
+
+	    }
+
+
+	if (/(foreach)/){$hold=1}
+
+	print "test_line $test_line\n" if $opt_v;	
+	$test_line =~ s/\{[^\{\}]*?\}//g;
+	print "test_line $test_line\n" if $opt_v;	
+	while ($test_line =~ /[\{\}]/)
+	{
+	    if ($test_line =~ s/\{//){$level++;$hold=0}
+	    if ($test_line =~ s/\}//){$level--;$hold=0}
+	    print "test_line $test_line\n" if $opt_v;	
+	}
+
+#	if (($level == 0) and ($hold == 0)){&parse($_)}
+
+
+	if ($line =~ /^\s*(iptables|echo|modprobe)/)
+	{
+	    chomp $line;
+	    $line =~ s/\#.*//g;
+	    $line =~ s/\"/\\\"/g;
+
+
+	    if ($old_iptables)
+	    {
+		if ($line =~ s/(-m\s+owner)\b//g)       {print color("cyan"),"           removed -m owner",color("reset"),"\n" unless $opt_q;}
+		if ($line =~ s/(--cmd-owner\s+\S+)\b//g){print color("cyan"),"           removed $1",color("reset"),"\n" unless $opt_q;}
+		if ($line =~ s/(--uid-owner\s+\S+)\b//g){print color("cyan"),"           removed $1",color("reset"),"\n" unless $opt_q;}
+
+	    }
+	    if ($no_cmd_owner == 1)
+	    {
+		if ($line =~ s/(--cmd-owner\s+\S+)\b//g){print color("cyan"),"           removed $1",color("reset"),"\n" unless $opt_q;}
+		if ($line !~ /--uid-owner/ &&  $line =~ s/(-m\s+owner)\b//g){print color("cyan"),"           removed $1",color("reset"),"\n" unless $opt_q;}
+	    }
+
+
+	    # code meant to account chains created, so that we can refuse to insert rules with wrong non-existant chains
+	   
+	    # doesn't work : sometimes the chain is concealed in a variable ie out_eth${i}
+	    # and can be resolved only at eval time due to foreach instructions 
+	    
+	    #if ($line =~ /^\S*iptables\s+-N\s+(\w+)$/)
+	    #{ $new_chains{$1}=1;
+		# print "new chain : $1\n";
+		# print color("cyan"), "new chains : ";foreach (keys %new_chains){print $_," "};print color("reset"),"\n";
+	    #}
+	    #if ($line =~ /^\S*iptables\s+-A\s+(\w+)\s/ && ! exists $new_chains{$1})
+	    #{		print color("magenta"),"should be dropping :",color("reset"),"$line ", color("magenta"),"chain $1 not loaded",color("reset"),"\n";	    }
+
+	    
+
+	    # LOG, accept NO LIMITS
+	    if ($line =~ /^(.*?)-j\s+(LOGACCEPT)\s+(.*?)\s*$/)
+	    {
+	    
+		my $cmd=$1;
+		my $keyword=$2;
+		my $logmsgt=$3;
+		# remove unwanted chars : quotes, dbl quotes, backslashes
+		$logmsgt =~ s/[\"\'\\]//g;
+
+		$line="";
+		my $logmsgstd="$logmsgt: ";
+		$line="$cmd -m limit --limit 1/sec --limit-burst 10 -j LOG --log-prefix '$logmsgstd' --log-level 7\n";
+		$line.="$cmd -j ACCEPT\n";
+		
+	    }
+
+	    # OACCEPT : log only if overflow
+	    # OLACCEPT : log when accept, log when overflow
+	    if ($line =~ /^(.*?)-j\s+(OACCEPT|OLACCEPT)\s+(.*?)\s*$/)
+	    {
+		my $cmd=$1;
+		my $keyword=$2;
+		my $logmsgt=$3;
+		#print "log '$2' $logmsgt\n";
+		my $cmd_nolimit=$cmd;
+		$cmd_nolimit =~ s/-m\s+limit//g;
+		my $limit;my $limit_burst;my $limit_reject="3/sec";my $limit_reject_burst=6; # 5 is default, and is obscuring the diff in iptables-save
+		#print "no m: $cmd_nolimit\n";
+		if ($cmd_nolimit =~ s|--limit\s+((\S+)/(\S+)) ||g)
+		{
+		    my $unit_limit=$3;
+		    my $limit_allow=$2;
+		    
+
+		    $limit_reject= 10 * $limit_allow."/".$unit_limit;
+		    if ($3 eq 's') {$limit_reject = '10/s' if $2 > 10}
+		    if ($3 eq 'm') {
+			#print "limit : $limit_allow / $unit_limit \n";
+			if (10 * $limit_allow >= 60){ 
+			    $limit_reject_s=int(10 * $limit_allow/60) ;
+			    if ($limit_reject_s == 10 * $limit_allow/60)
+			    {
+				if ($limit_reject_s == 0){$limit_reject_s =1};
+				$limit_reject = "$limit_reject_s/sec";
+				#print $cmd_nolimit;
+			    }
+			}
+		    }
+		    
+		}
+
+		if ($cmd_nolimit =~ s/--limit-burst\s+(\d+) //g)
+		{
+		    #print "no m : $cmd_nolimit \n limit reject $limit_reject\n";
+		    $limit_burst=$1;
+		    $limit_reject_burst= 10 * $limit_burst;
+		    $limit_reject_burst=10 if $limit_reject_burst>10 ;
+
+		}
+
+		# remove unwanted chars : quotes, dbl quotes, backslashes
+		$logmsgt =~ s/[\"\'\\]//g;
+		#print "$keyword $cmd $logmsgt\n";
+		$line="";
+		my $logmsgstd="$logmsgt: ";
+		# not yet intepreted, we don't want to cut variable names...
+		#$logmsgstd=&cut29($logmsgstd);
+		$line="$cmd -j LOG --log-prefix '$logmsgstd' --log-level 7\n" if $keyword eq "OLACCEPT";
+		$line.="$cmd -j ACCEPT\n";
+		my $logmsgoflow="oflow $logmsgt: ";
+		#$logmsgoflow=&cut29($logmsgoflow);
+		$line.="$cmd_nolimit -m limit --limit 1/sec --limit-burst 10 -j LOG --log-prefix '$logmsgoflow' --log-level 7\n";
+		$line.="$cmd_nolimit -m limit --limit $limit_reject --limit-burst $limit_reject_burst  -j REJECT\n";
+		$line.="$cmd_nolimit -j DROP\n";
+		#print "debug limit : $line";
+		
+	    }
+
+
+	    if ($no_limit == 1)
+	    {
+		if ($line =~ s/-m\s+limit//g)
+		{
+		    
+		    $line =~ s/(--limit-burst\s+\S+)\b//g;
+		    my $removed_limit=$1;
+		    $line =~ s/(--limit\s+\S+)\b//g;
+		    $removed_limit.=" ".$1;
+		    #print color("cyan"),"           removed $removed_limit\n",color("reset");
+		}
+	    }
+
+	    $line =~ s/^(.*)$/\&ex("$1","$efile");/gm;
+	    #$line =~ s/^(.*)$/\&ex("$1");/gm;
+	    print "rw : $line\n" if $opt_r;
+
+	} # end of system calls (iptables, echo...)
+
+	print $counter." : $line\n" if $opt_c;
+	$code.="$line\n" ;
+
+	
+
+	if (($level == 0) and ($hold == 0))
+	{
+	    eval $code;
+	    die "error : $@\n code : $code\n" if ($@);
+	    $code=""; $counter=0;
+	}
+	
+    } #end foreach line
+
+
+    # if there is any code left (which should not happen)
+    if ($code)
+    {	print color("red");
+	print "THERE IS SOME CODE LEFT : THIS SHOULD NOT HAPPEN\n";
+	print color("reset");
+	print "code follows : \n'$code'\n";
+	eval $code;
+	die "error : $@\n code : $code\n" if ($@);	
+
+    }
+}
+
+sub openfile{
+    my $file=shift;
+    unless (open (F,"$file"))
+    { 
+        
+        my $msg="cant open $file : $!";
+
+        warn color("red"),$msg,color("reset");
+        my $syslog_try=qq/syslog('syslog|debug','$msg');/;
+        eval $syslog_try;
+
+        return;
+    }
+    my @code=<F>;
+    close F || warn "cant close $file : $!";
+    return @code;
+}
+
+$SIG{INT} = \&catch_zap;  
+$SIG{USR1} = \&catch_zap;  
+
+
+sub catch_zap {
+    my $signame = shift;
+
+    my $msg="Somebody sent me a SIG$signame...";
+
+    my $syslog_try=qq/syslog('syslog|debug','$msg');/;
+    eval $syslog_try;
+
+    #$shucks++;
+
+    print "\n$msg\n";
+    &post_death("catch_zap");
+
+    #&launch_fetchmail();
+}
+
+
+sub ex{
+    # 
+    my $command=shift;
+    my $efile=shift;
+    #my $unresolved_code=shift;
+    #&parse($command);
+    print "      $command\n" if $opt_e;
+    print OUT "$command\n";
+
+    &ipacfill ($command,$efile) if $opt_i; 
+    &iptablessavefill($command,$efile);
+
+
+    #exec_of_iptables  = 0 if  iptables_restore=1    
+    if ($exec_of_iptables == 0 || $opt_n)
+    {
+
+	
+    }
+    else
+    {
+	unless (system($command) == 0)
+	{ 
+	    print color("red"),"die : \n$command\nreturn code : $?\n",color("reset");
+	    #&flush;
+	    #&stop;
+	    &post_death ("error in executing command");
+	};
+    }
+}
+
+sub display {
+    my $var=shift;
+    if (! $opt_q)
+    {
+	print color("green"),"$var : $$var",color("reset"),"\n" if $$var;
+	print color("green"),"$var : array @$var",color("reset"),"\n" if @$var;
+        if (%$var)
+        {
+            foreach (keys %$var)
+            {
+                print color("green"),"$var : hash $_ $$var{$_}",color("reset"),"\n" 
+            }
+        }
+    }
+}
+
+
+sub generic_parse{
+    my $line=shift;
+    
+    # does not load it
+    #use if $line,'Net::Netmask';
+
+    # optional use.
+    require Net::Netmask;
+    import  Net::Netmask;
+    
+    #print "\n";
+
+    
+    
+    my $myblock = new Net::Netmask($$my_domain); #   unless $$my_domain; not working.
+    
+    if (! $$my_domain)
+    { print color("red"),"my_domain = $my_domain = no domain !",color("reset"),"\n"; }
+
+    print "my network : $my_domain : $$my_domain ",$myblock->desc,"\n" if $opt_d;
+
+
+
+    my @rules_generic=();
+    #print color("red"),"new : $line",color("reset"),"\n";
+    #print "$line\n";
+    
+    if ($line =~ /,/){
+
+	return &multiple_line ($line);
+    }
+    
+
+    my $ruleg="";
+    my $source="";
+    my $destination="";
+
+    my $source_int="";
+    my $destination_int="";
+    my $nat_box="";
+    my $nat=0;
+
+    # port in rule
+    my $port_g="";
+    my $port_g_log="";
+    # port string;
+    my $port_s="";
+    my $interface_suffix="";
+    my $glogmsg="";
+    my @parts=split("-",$line);
+
+    # way = fwd_ in_ out_  to build : fwd_e1_to_e0 in_eth1 in_eth0 out_eth0
+    my $way="";
+    my $interface="";
+
+    my $concerned=0;
+    my $concerned_fwd=0;
+    my $concerned_force=0;
+    my $forwarding_host=0;
+
+    # no limits, no logs
+    my $nl=0;
+    # no limits
+    my $nlim=0;
+    # no source ip if nsip == 1
+    my $nsip=0;
+
+    # my ?
+    $debug_print="rule : $line\n";
+    
+    # generic limit
+    my $limit_g="40/s";
+
+    # 1st pass
+    foreach my $i (0 .. $#parts)
+    {
+
+ 	my $host_is_in_my_domain=0;
+	
+	#my $part=$_;
+	my $hostg="";
+	my $port_g="";
+
+	($hostg,$port_g)=&parse_part($parts[$i]);
+
+
+	#print "part $i : $parts[$i] : $hostg \n";
+	#$debug_print.= "hostg : $hostg * port_g : $port_g * limit_g : $limit_g\n";
+	
+	# ip quad dotted, so $$hostg is the same as $hostg, it's already resolved...
+	if ($hostg =~ /^(\d+\.){3}\d+/)
+	{
+	    #print "quad :$hostg\n";
+	    $$hostg=$hostg;
+	    
+	}
+
+	if ($port_g){
+	    $port_g =~ s/[\(\)]//g ;
+
+	    # port_s : string
+	    $debug_print .= "port_g $port_g\n";
+
+	    # remove spaces
+	    $port_g =~ s/^\s*(.*?)\s*$/$1/;
+
+	    ($port_s,$interface_suffix,$nl,$nlim,$concerned_force,$nsip,$noint)=&port_analyze($port_g,$hostg);
+	    $port_g_log=$port_g;
+	    $port_g_log =~ s/_ports?//;
+	    $port_g_log =~ s/nlim://;
+	    $port_g_log =~ s/force=\w+://;
+	    $debug_print .= "port string $port_s nl=$nl\n";
+
+	}
+
+	# multiple hosts in one variable (ex : $as_dev)
+	if ($$hostg && $$hostg =~ /,/) 
+	{
+	    #print "multi part : $i : $hostg = $$hostg\n" ;
+	    return &multiple_line ($line,$hostg);
+	}
+	# multiple hosts in one variable (ex : @as_dev)
+	if (@$hostg)
+	{
+	    return &multiple_line ($line,$hostg);
+	}
+
+	if ($hostg eq "hostname"){$hostg = $hostname}
+
+	#print "\n";
+	
+	#if ($hostg eq "wide")	{	    $hostg="0.0.0.0/0";	}
+	#$wide="0.0.0.0/0";
+
+	#my $myblock = new Net::Netmask($wide);
+	#print "$myblock\n";
+
+	
+
+	# source (1st pass)
+	if ($i==0){
+	    $source=$hostg;
+	    #print "route determine for source $hostg\n";
+	    $source_int=&route_determine($hostg);
+
+	    $source_int =~ s/tun\w+/tun/;	    
+	    $source_int =~ s/ppp\w+/ppp/;	    
+	    
+	     # little rewrite so that ppp is tun on avaiki
+	    if ($hostname eq "avaiki" and $source_int =~ s/ppp/tun/)
+	    {
+		$debug_print .= "rewriting source_int ppp to tun on avaiki, ppp is vpn on this box\n";
+	    }
+	    
+	    $interface=$source_int;
+	    
+
+	    
+	    if (($source eq $hostname) || exists $ifconfig{$source} || exists $ifconfig{$$source})
+	    {
+		$way="out";
+		$debug_print .= "i'm source : $source : interface $interface ! way=$way\n";
+	    }
+
+	    $source_log=$source;
+	    $source_log =~ s/192.168.//;
+	    
+	}
+	
+	# destination (1st pass)
+	if ($i==$#parts){
+	    $destination=$hostg;
+	    #print "route determine for destination $hostg\n";
+
+	    $destination_int=&route_determine($hostg);
+	    #print "end route determine for destination $hostg\n";
+	    
+	    $destination_int =~ s/tun\w+/tun/;
+	    $destination_int =~ s/ppp\w+/ppp/;
+           # little rewrite so that ppp is tun on avaiki
+           if ($hostname eq "avaiki" and $destination_int =~ s/ppp/tun/)
+           {
+               $debug_print .= "rewriting $destination_int ppp to tun on avaiki, ppp is vpn on this box\n";
+           }
+
+
+	    $interface=$destination_int;	    
+	    #$interface =~ s/tun\w+/tun/;
+
+
+
+	    if ($destination eq $hostname || exists $ifconfig{$destination} || exists $ifconfig{$$destination})
+	    {
+		$debug_print .= "i'm destination : interface $interface ! ";
+		if ($source eq "wide")
+		{
+		    $destination_int = "all";
+		    $interface=$destination_int;	    
+		    $debug_print .= "but source is wide, so interface is all ";
+		}
+	        
+		# route is different than annonced
+		my $destination_int_guess=&route_determine($source);
+		$destination_int_guess  =~ s/tun\w+/tun/;
+		$destination_int_guess  =~ s/ppp\w+/ppp/;
+		if ($destination_int_guess ne $destination_int)
+
+		{
+		    $debug_print .= "destination int guess ($destination_int_guess) is not what's expected : $destination ($destination_int), rewriting.";
+		    #print "i'm destination ($destination) ; rewriting destination int : $destination_int -> $destination_int_guess\n";
+		    $interface=$destination_int_guess;
+		    $destination_int=$destination_int_guess;
+		    $destination=0;
+		    
+			
+		}
+
+
+		$way="in";
+		
+		$debug_print .=" way = $way\n";
+		
+	    }
+	    $destination_log=$destination;
+	    $destination_log=~ s/192.168.//;
+	}
+
+
+	# is in my net (1st pass)
+	#print "$hostg in my net $myblock ?\n";
+
+	# will check if it contains the adresse, ip or network
+	if (&contains($myblock,$hostg))
+	{
+	    $debug_print .= "$hostg is in my network $myblock !\n";
+	    $host_is_in_my_domain=1;
+	} 
+	else {
+	    
+	    $debug_print .= "$hostg is not in my network $myblock!\n";
+	}
+
+	
+	# nat (1st pass)
+	# if my hostname and the middle hostname are the same
+
+        # not working for equinox because this is as5-2 and not fw1-2
+	if (($hostname eq $hostg || $hostg =~ /$hostname\d+/ ) and ($i != 0) and ($i != $#parts))
+	{
+	    $debug_print .= "i'm a natting firewall : $hostg is me and is in the middle" ;
+
+	    $way="fwd";
+	    $nat=1;
+	    $nat_box=$hostg;
+
+	    $debug_print .= " !\n";  
+	    
+
+	    
+	}
+
+	# if ip eth1 = myblock->first = i'm the  firewall
+	# and if host is in my domain 
+	# print "first ip : ",$myblock->nth(1),"\n";
+
+	
+	
+	if ($my_ip_eth1 && 
+	    ($my_ip_eth1 eq $myblock->nth(1) || ( $my_ip_eth1_alias && ( $my_ip_eth1_alias eq $myblock->nth(1) )))
+	    && $host_is_in_my_domain
+	    # escape the case  where the firewall tries to access some host in his network : kaf_eth1 - roc (smtp)
+	    && $way eq "out"
+	    )
+	{ 
+	    $debug_print .= "my_ip_eth1 $my_ip_eth1 myblock->nth(1) ".$myblock->nth(1)." \n";
+	    #print  color("red"),"warning : this wont be forwarded, see next if in the code, way = out",color("reset"),"\n";
+	    print  "this wont be forwarded\n" unless $opt_q;
+	}
+
+	# first pass ...
+	if ($my_ip_eth1 && 
+	    ($my_ip_eth1 eq $myblock->nth(1) || ( $my_ip_eth1_alias && ($my_ip_eth1_alias eq $myblock->nth(1) ) ))
+	    && $host_is_in_my_domain
+	    # escape the case  where the firewall tries to access some host in his network : kaf_eth1 - roc (smtp)
+	    && $way ne "out"
+	    )
+	{
+	    $way="fwd";
+	    $concerned_fwd=1;
+	    $debug_print .= "i'm the router for my_domain $my_domain and $hostg is in my network ! way=$way concerned_fwd=$concerned_fwd\n";
+	}
+	
+
+	# it's me, still 1st pass
+	if ($hostname eq $hostg || exists $ifconfig{$hostg} || exists $ifconfig{$$hostg}) 
+	{
+	    $debug_print .= "i'm concerned !, will load the rules\n";# - source $source destination $destination\n";
+	    $concerned=1;
+	    #$destination_log=&log_msg_strip($destination);
+	    #$source_log= &log_msg_strip($source);
+	    #$destination_log=substr $destination,0,5;
+	    #$source_log= substr $source,0,5;
+	}
+
+    } # end 1st pass
+    
+
+    # $way eq "" => i'm neither source nor destination
+
+    $debug_print .= "forwarding ? source -$source_int- destination -$destination_int-\n";
+
+    # this block is INFORMATIONAL ONLY. the code is at  '# special for tun', 50 lines below
+    if (
+	# valid : i'm authenticated via vpn, i can go out via tun
+	#not (($source_int eq "tun")  && ($destination_int eq "eth0"))
+	#&& 
+	not ((grep $_ eq $source_int,@my_default_route_interfaces) && ($destination_int eq "tun"))
+	|| $concerned_force == 1
+	)
+    {
+	$debug_print .= "not source eth0 and dest tun, should route : way : -$way- \n";
+	
+    }
+    else 
+    {
+	$debug_print .= "source eth0 out tun : WONT FORWARD\n";
+    }
+	
+
+    # weed out eth1-eth1 but keep anything-tun and tun - anything
+    if ($concerned_fwd==1 && $destination_int eq $source_int && $destination_int ne "tun")
+    {
+	$debug_print .= "$destination_int = $source_int, so i'm not that concerned...\n";
+	$concerned_fwd=0;
+    }
+
+
+
+    #$debug_print .= "ip_eth1 :$my_ip_eth1 my_ip_eth1_alias:$my_ip_eth1_alias my block : $myblock->nth(1)\n";
+    # hosts not in my domains
+    if (
+
+        (($my_ip_eth1 && ($my_ip_eth1 eq $myblock->nth(1)  ||  ( $my_ip_eth1_alias && ($my_ip_eth1_alias eq $myblock->nth(1))))) 
+         || ($my_forwarding && $my_forwarding == 1))
+	&& $destination_int ne $source_int  
+	&& not ($destination_int eq "all"  && $source_int eq "all")
+	&& $way eq ""
+	
+	# source vpn et destination net
+
+	#&&
+	#not (($source_int eq "tun")  && ($destination_int eq "eth0"))
+        && not ((grep $_ eq $source_int,@my_default_route_interfaces) && ($destination_int eq "all"))
+        && not ((grep $_ eq $source_int,@my_default_route_interfaces) && ($destination_int eq "tun"))
+        # for equinox. i received vpn connections, but i dont want to forward them to the wide
+        && not ((grep $_ eq $destination_int,@my_default_route_interfaces)  && (grep $_ eq $source_int,@my_interfaces_not_forwarded_to_wide))
+	)
+	
+    {
+	$way="fwd";
+	$concerned_fwd=1;
+
+	$debug_print .= "i'm a forwarder, but none of the hosts are in my domains;   $source_int  -> $destination_int way=$way concerned_fwd=$concerned_fwd\n";
+
+        # useless, to avoid Name  used only once: possible typo 
+        if (@my_interfaces_not_forwarded_to_wide){$debug_print .= "my_interfaces_not_forwarded_to_wide @my_interfaces_not_forwarded_to_wide my_default_route_interfaces : @my_default_route_interfaces\n";}
+
+
+    }
+    
+    # special for tun
+    elsif ($my_forwarding 
+	   && $my_forwarding == 1
+	   && ($destination_int ne $source_int || ($destination_int eq "tun" && $source_int eq "tun"))
+	   && not ($destination_int eq "all"  && $source_int eq "all")
+	   && $way eq "" 
+	   &&  ( $concerned_force ==  1 || not ((grep $_ eq $source_int,@my_default_route_interfaces) && ($destination_int eq "tun")))
+	   && not ( (grep $_ eq $source_int,@my_default_route_interfaces) && ($destination_int eq "all") )
+	   
+	   )
+    {
+
+	$way="fwd";
+	$concerned_fwd=1;
+
+	$debug_print .= "forwarding vpn, no eth1 present : $source_int -> $destination_int  way=$way concerned_fwd=$concerned_fwd concerned_force=$concerned_force\n";
+	
+	# useless, to avoid Name "main::forwarding" used only once: possible typo at ./base
+
+	if ($my_forwarding == 1){};
+	
+    }
+
+    # forced forwarding
+    elsif ($concerned_force ==  1 &&
+           $my_forwarding 
+	   && $my_forwarding == 1
+	   && $way eq "" 
+	   )
+    {
+        
+	$way="fwd";
+	$concerned_fwd=1;
+        
+	$debug_print .= "forwarding vpn, no eth1 present : $source_int -> $destination_int  way=$way concerned_fwd=$concerned_fwd concerned_force=$concerned_force\n";
+	
+    }
+    else {	
+
+	$debug_print .= "not forwarding due to interfaces : ";
+	$debug_print .="my_forwarding : $my_forwarding" if $my_forwarding;
+	$debug_print .= "ints : $source_int -> $destination_int, way : $way,  concerned_fwd=$concerned_fwd  concerned_force=$concerned_force\n";
+	
+    }
+
+    # rewrite interface depending where it comes from
+    # bpod - trivia (eth1 - eth0) = -A in_e1_to_e0  -s 192.168.142.98  -d 209.47.172.20
+    # will become : iptables -A in_eth1  -s 192.168.142.98   -p tcp --dport 80  -m limit --limit 40/s --limit-burst 100  -j ACCEPT
+    
+    if ($concerned_fwd && $way eq "in")
+    {
+	#print "rewrite $source_int -> $destination_int to $source_int ; wiping $destination : ";
+	$debug_print .= "$source_int -> local $destination_int (in_e1_to_e0), rewriting\n";
+	$concerned_fwd = 0;
+	$destination_int = $source_int;
+	$destination=0;
+    }
+    
+    
+    
+
+    # need to fix natch - bunip eth0/tun : bad source : -A out_tun  -s 192.168.142.59  -d 64.254.227.114
+
+    # little rewrite so that ppp is tun on avaiki
+    if ($hostname eq "avaiki" and $destination_int =~ s/ppp/tun/)
+    {	$debug_print .= "rewriting  destination_int  ppp to tun on avaiki, ppp is vpn on this box\n";    }
+    if ($hostname eq "avaiki" and $source_int =~ s/ppp/tun/)
+    {	$debug_print .= "rewriting source_int ppp to tun on avaiki, ppp is vpn on this box\n";    }
+
+        if ($hostname eq "avaiki" and $interface =~ s/ppp/tun/)
+    {	$debug_print .= "rewriting interface ppp to tun on avaiki, ppp is vpn on this box\n";    }
+
+
+    # forward
+    if ($concerned_fwd)
+    {
+	# if destination interface and source interface are different
+	if (($destination_int ne $source_int)  || ($destination_int eq "tun" && $source_int eq "tun"))
+	    
+	{
+	    $debug_print .= "i'm THE forwarding firewall ";
+	    my $di=$destination_int;
+	    my $si=$source_int;
+	    $si =~ s/eth/e/;      
+            $di =~ s/eth/e/; 
+	    $si =~ s/tun\w+/tun/; 
+            $di =~ s/tun\w+/tun/;
+
+            $si=~ s/^bond/b/;
+            $di=~ s/^bond/b/;
+            $si=~ s/^wlan/w/;
+            $di=~ s/^wlan/w/;
+            $si=~ s/^veth/ve/;
+            $di=~ s/^veth/ve/;
+            $si=~ s/^veneth/vn/;
+            $di=~ s/^veneth/vn/;
+            $si=~ s/^vlan/vl/;
+            $di=~ s/^vlan/vl/;
+            $si=~ s/^vmbr/vb/;
+            $di=~ s/^vmbr/vb/;
+            $si=~ s/^tap/t/;            
+            $di=~ s/^tap/t/;
+
+
+            
+
+	    $interface="${si}_to_${di}";
+	    
+	    $glogmsg.="$source_log -> $destination_log/$port_g_log";
+
+	    if ($nat)
+	    {
+		$debug_print .="and i will nat";
+		
+		# why natting only if it's wide
+		#if ( $source eq "wide" )
+		#{  
+		#    $debug_print .=  " and source is wide\n";
+        # broken, should be all interfaces, not e0 only
+		my $nat_rule="iptables -t nat -A pr_in_e0${interface_suffix} -s $$source -d $$nat_box $port_s  -m limit --limit $limit_g --limit-burst 100 -j DNAT --to-destination $$destination";
+		#$debug_print .= "\n$nat_rule\n";
+		push @rules_generic,$nat_rule;
+		#}
+		
+
+	    }
+	    $debug_print .= "\n"
+	}
+	
+    }
+
+    #print "wide $wide natch $natch\n";
+    
+    ############################################
+    # second pass, used for logs
+    ############################################
+
+    foreach my $i (0 .. $#parts)
+    {
+	$debug_print.= "second pass : $i :  $parts[$i]\n";
+	# how usefull is port_g2 ?
+	my ($hostg,$port_g2)=&parse_part($parts[$i]);
+
+	
+	# i'm either source or destination
+	# $hostg and $$hostg to catch both ip and names
+	if ($hostg eq $hostname || $hostg eq "hostname" || exists $ifconfig{$hostg} || exists $ifconfig{$$hostg})
+	{
+
+	    
+	    $debug_print.= "log pass : source_log = $source_log ; dest_log = $destination_log ; port_g = $port_g\n";
+	    # i'm source : i'll log destination
+	    $glogmsg.="$port_g_log $destination_log" if $i == 0;
+	    # i'm destination : i'll log source
+	    $glogmsg.="$port_g_log $source_log" if $i == $#parts;
+	}
+	#if (exists $ifconfig{$hostg}){ print "log pass : source_log = $source_log ; dest_log = $destination_log ; port_g = $port_g\n";	}
+	#if (exists $ifconfig{$destination})	{ "log pass : source_log = $source_log ; dest_log = $destination_log ; port_g = $port_g\n";}
+    }
+
+
+    
+    $debug_print .= "source $source destination $destination port $port_g ; log : '$glogmsg'\n";
+    $debug_print .= "natted at $nat_box\n" if $nat_box;
+    
+    # quad dotted ip
+    $destination = '$'.$destination unless $destination =~ /^[\d\.\/]+$/;
+    $source      = '$'.$source unless $source =~ /^[\d\.\/]+$/;
+    
+   
+    
+   
+
+    
+    if ($concerned || $concerned_fwd) {
+	#if ($destination eq "$wide")	{#$destination ="";}
+	$glogmsg=&log_msg_strip($glogmsg);	
+
+	my $destination_string="";
+	my $source_string="";
+
+	# source ip
+	if ($nsip == 0){
+	    $debug_print .= "source ip : $source\n";
+	    $source_string="-s ${source}" if $source;
+	}
+	$destination_string="-d ${destination}" if $destination;
+
+	my $add_flag="-A";
+	$add_flag="-I" if $opt_I;
+
+	my $limit_string="-m limit --limit $limit_g --limit-burst 300";
+	my $destination_chain_string="-j OLACCEPT $glogmsg";
+
+	if ($nl == 1){
+	 
+	    $limit_string="" ;
+	    $destination_chain_string="-j ACCEPT";
+	}
+
+	if ($nlim == 1){
+	 
+	    $limit_string="" ;
+	    $destination_chain_string="-j LOGACCEPT $glogmsg";
+	}
+
+        if ($noint == 1) {$interface='all'}
+	
+
+	$ruleg="iptables $add_flag ${way}_${interface}${interface_suffix}  ${source_string}  ${destination_string} $port_s  $limit_string $destination_chain_string";
+
+	#print "noex : $ruleg\n";
+	print "\ndebug :\n$debug_print" if ( $opt_d  or $opt_G);
+        print "$line :\n$ruleg\n" if ( $opt_d or $opt_G or $opt_R);
+	print "$line\n" if ($opt_D && $opt_D =~ /\brules\b/);
+        #print "$line\n" unless $opt_q;
+        print "$line\n" if $opt_T;
+        
+	push @rules_generic,$ruleg;
+    }
+    else {
+	# big debug (always here)
+	print "\ndebug big non concerned :\n$debug_print" if $opt_G;
+
+    }
+    return @rules_generic;
+}
+
+sub parse_part {
+
+    # split host and ports 
+    my $host_pp="";
+    my $port_pp="";
+    my $part_pp=shift;
+    #my $limit_pp="1/s";
+    $part_pp =~ s/^\s+//;
+    $part_pp =~ s/\s+$//;
+    #$part_pp =~ s@([\d\.\w]+)\s*(\([\w;/,\s]+?\))?$@$1@;
+    #$part_pp =~ s@([\d\.\w]+)\s*(\([\w]+?\))?$@$1@; 
+
+    # added : in port for udp mode
+    # port parsing  and syntax
+
+    #              hostname        port
+    $part_pp =~ s/([\d\.\w\/]+)\s*(\([\w:=,\s]+?\))?$/$1/;
+
+
+    $host_pp=$1;
+    if ($2)
+    {
+	$port_pp=$2;
+	#$port_pp =~ s/(\w+)\s*(?:;\s*(\d+\/\w))?/$1/;
+	#$limit_pp=$2 if $2;
+	
+    }
+
+    $debug_print .= "parsing : found host $host_pp port $port_pp\n";
+    
+    return $host_pp,$port_pp;
+
+}
+
+sub multiple_line {
+    my $line =shift;
+    print "multiple rule : $line \n" if $opt_G;
+    my $part_to_parse=shift;
+    if ($part_to_parse && $$part_to_parse)
+    {
+	#print "parting : $part_to_parse = $$part_to_parse\n";
+	#print "    line : $line\n";
+	$line =~ s/$part_to_parse/$$part_to_parse/;
+	#print "new line : $line\n";
+    }
+
+    my @multiple=();
+    my $multiple="";
+    if ($line =~ /([\:=\w]+\s*,[\:=\w,\s]+)/)
+    {
+	#print "got $1\n";
+	#sleep 1;
+	$multiple=$1;
+	@multiple=split (',',$multiple);
+    }
+    elsif (@$part_to_parse)
+    {
+	@multiple=@$part_to_parse;
+	$multiple=$part_to_parse;
+    }
+    my @new_data_multiple;
+    foreach (@multiple)
+	
+    {
+	my $uniq_item=$_;
+	my $temp_line=$line;
+        # useful for Use of uninitialized value errors
+        #print "temp line $temp_line ; uniq_item  -$uniq_item-\n";
+	$temp_line =~ s/$multiple/$uniq_item/;
+	$temp_line =~ s/^\s*//;
+	$temp_line =~ s/\s*$//;
+	
+	push @new_data_multiple,$temp_line;
+    }
+
+    foreach (@new_data_multiple){print  "new splitted line : $_\n" if $opt_G;}
+    return @new_data_multiple;
+    
+    
+}
+
+sub route_determine {
+
+    my $hostg_rd=shift;
+
+    #print "wide -$wide- -$$wide-\n";
+    $debug_print.= "hostg_rd -$hostg_rd- -$$hostg_rd-\n";
+
+    # we HAVE TO find a route
+
+    if ($hostg_rd eq "wide" ||  $$hostg_rd  eq "0.0.0.0/0.0.0.0")
+    {
+	# all interfaces
+	
+        #return "all";
+        # no, because bocha -  wide (80) permits bocha - usine (80)
+
+        # could/should be all @my_default_route_interface
+        return $my_default_route_interfaces[0];
+    }
+
+    foreach (reverse sort keys %route)
+    {
+
+	my $blockr=$_;
+	#print "examining if $hostg_rd  ($$hostg_rd) is in $blockr\n";
+	if (&contains($blockr,$hostg_rd))
+	{
+	    $debug_print.="$$hostg_rd is in $blockr -> $route{$blockr}\n";
+	    return $route{$blockr};
+	    
+	}
+    }
+}
+
+
+sub contains{
+
+    # block_cg 64.254.227.112/28 
+    # hostg_c natch
+    
+    my $block_cg=shift;
+    my $hostg_c=shift;
+
+    #print "getting  $block_cg contains $hostg_c ($$hostg_c)\n";
+    my $block_c = new2 Net::Netmask($block_cg) || warn "$_ is not a valid net\n";
+    
+    # ip quad dotted
+    #print "hostg_c : $hostg_c\n";
+    if ($hostg_c =~ /^[\d\.]+$/){$$hostg_c=$hostg_c}
+
+    if (! $$hostg_c)
+    {
+        print color("red"),"in contains : die : -$hostg_c- not defined",color("reset"),"\n";
+        # really ? what for ? iptables line by line execution ? 
+        # only for syslog notification
+        &post_death ("undefined variable");
+    }
+
+    if ($$hostg_c =~ m|/|)
+    {
+	#print "we are looking the route for  a network block : $hostg_rd $$hostg_rd\n";
+	if ($block_c->contains($$hostg_c))
+	{
+	    #print "$$hostg_c is in $block_c !\n";
+	    return 1;
+	}
+    }
+    else
+    {
+	if ($block_c->match($$hostg_c)){
+	    #last;
+	    return 1;
+	}
+    }
+    
+    return 0;
+
+}
+
+sub port_analyze{
+    my $port_pa=shift;
+    my $host_pa=shift;
+    #my $porta=$port_ar;
+    my $port_string="";
+    my $port_rpa="";
+    
+    my $interface_suffix_pa="";
+    my $proto="-p tcp";
+    
+    my $nl=0;
+    my $nlim=0;
+    my $np=0;
+    my $protocol=0;
+    my $nsip=0;
+    my $noint=0;
+    my $noint4nat=0;
+    my $concerned_force=0;
+    $debug_print .="port_pa 1 : -$port_pa- host -$host_pa-\n";
+    # simple resolution
+    if ($$port_pa){$port_rpa=$$port_pa}
+
+    # udp
+    if ($port_pa     =~  s/\bu\b//)
+    {
+	$proto="-p udp ";
+	$debug_print .="detecting udp mode ; clenching rescue udp systems ; new port_pa : $port_pa\n";
+	# hack for ntp
+	$interface_suffix_pa="_allsrc" if $port_pa =~ /\b(123|ntp)\b/;
+	# hack for dns
+ 	$interface_suffix_pa="_allsrc" if $port_pa =~ /\b(53|dns)\b/;
+    }
+
+    # no log, no limit
+    if ($port_pa     =~  s/\bnl\b//)
+    {
+
+	$debug_print .="nl keywork : no log, no limit ; new port_pa : $port_pa\n";
+	$nl=1;
+
+    }
+
+    #no limit
+    if ($port_pa     =~  s/\bnlim\b//)
+    {
+
+	$debug_print .="nlim keywork : no limit ; new port_pa : $port_pa\n";
+	$nlim=1;
+
+    }
+
+    
+    # no ports
+    if ($port_pa     =~  s/\bnp\b//)
+    {
+
+	$debug_print .="np keywork : no ports ; new port_pa : $port_pa\n";
+	$np=1;
+
+    }
+    if ($port_pa     =~  s/\bnsp\b//)
+    {
+
+	$debug_print .="nsp keywork : no source ports ; new port_pa : $port_pa\n";
+	#$no_source_port=1;	
+	$interface_suffix_pa="_allsrc";
+
+    }
+    if ($port_pa     =~  s/\bnsip\b//)
+    {
+
+	$debug_print .="nsip keywork : no source ip ; new port_pa : $port_pa\n";
+	#$no_source_port=1;	
+	#$interface_suffix_pa="_allsrc";
+	$nsip=1;
+
+    }
+
+    # specific protocol (ie GRE, used by pptp)
+    if ($port_pa     =~  s/\bprotocol\b//)
+    {
+
+	$debug_print .="protocol keywork : no ports ; new port_pa : $port_pa\n";
+	$interface_suffix_pa="_allpro";
+	$protocol=1;
+
+    }
+    
+    # no interface
+    if ($port_pa     =~  s/\bnoint\b//)
+    {
+
+	$debug_print .="notint keywork : no specific interface ; new port_pa : $port_pa\n";
+        $noint=1;
+    }
+    
+    # no interface for nat
+    if ($port_pa     =~  s/\bnoint4nat\b//)
+    {
+    # implementation not finished
+	$debug_print .="notint4nat keywork : no specific interface for natting ; new port_pa : $port_pa\n";
+        $noint=1;
+    }
+
+    if ($port_pa =~ s/\bforce=(\w+)\b// && $1 eq $hostname)
+    {
+	$debug_print .="loading of this rule will be forced on $hostname (due to force=$1)\n";
+	$concerned_force=1;
+    }
+
+    # wipe delimiters
+
+    $port_pa =~ s/^:+//;
+
+    if ($port_pa =~ /^(\w+)$/) {
+	my $generic_port_name=$1;
+
+
+	# the port (ex : paris_ssh_port)
+	#$debug_print .= "port_pa 2 : -$port_pa- host -$host_pa- : ".$host_pa."_".$generic_port_name."_port"."\n";
+	$port_rpa=${$host_pa."_".$generic_port_name."_port"} if ${$host_pa."_".$generic_port_name."_port"};
+
+	# generic port
+	if (${$generic_port_name."_port"} && $port_rpa eq "")
+	{
+	    # we suppose same port every where
+	    $port_rpa=${$generic_port_name."_port"};
+	}
+	
+	# my port
+	if ($host_pa eq "hostname")
+	{
+	    # well, it's me
+	    $port_rpa=${"my_".$generic_port_name."_port"} if ${"my_".$generic_port_name."_port"};
+	}
+
+	if ($port_pa eq "ping")
+	{
+	    $port_rpa="--icmp-type echo-request";
+	    $proto="-p icmp";
+	    $interface_suffix_pa="_allpro";
+	}
+    }
+    
+    # no resolution ? oh well, here is it verbatim
+    $port_rpa=$port_pa unless $port_rpa;
+
+  SWITCH: for ($port_rpa){
+      /^[\d+]$/        && do {$port_string="$proto --dport ";last SWITCH;};
+      /^[\d]+,[\d,]+$/ && do {$port_string="$proto -m multiport --dports ";last SWITCH;};
+      /icmp/           && do {$port_string="$proto "; last SWITCH;};
+
+
+      #default
+      $port_string="$proto --dport ";
+  }
+    
+    $port_string.=$port_rpa;
+
+    $port_string="" if $np;
+    $port_string="--protocol $port_rpa" if $protocol;
+
+    return $port_string,$interface_suffix_pa,$nl,$nlim,$concerned_force,$nsip,$noint;
+}
+
+sub routes_get{
+
+    unless (open (ROUTES,"/sbin/route -n|")){warn "can't call route : $!";return;}
+    my @routesp=<ROUTES>;
+    close ROUTES;
+    #%gateway;
+    #%default_gateway;
+    
+    # 1)  determine default gateway (0/0)
+    # for each network, record gateway (in %gateway)
+    # 2) if any route match this gateway, nullify it.
+    
+    # (\d+\s+)?  = one more on etch ?
+    map {if (/^([\d\.]+)\s+([\d\.]+)\s+([\d\.]+)\s+([A-Z]+)\s+(\d+)\s+(\d+)\s+(\d+\s+)?([\w\.]+)\s*$/)
+	 {
+	     my $route_interface=$8;
+	     my $route_network=$1;
+             my $route_gateway=$2;
+	     my $route_netmask=$3;
+	     $route{"$route_network/$route_netmask"}=$route_interface;
+
+             # what is doing this code ?
+             # if it matches eth1,2,3 (usually inside)
+             # the routed hosts are 
+             
+             #  equinox : hard coding  strange config
+             # $hostnamef defined in definitions
+             # print "hostnamef $hostnamef\n";
+             # should be "$no_routed_hosts_for_hostname"
+
+	     if ($route_interface =~ /(eth1|eth2|eth3)/ && ($hostnamef !~ /equinox/))
+	     {
+		 push @my_routed_hosts,"$route_network/$route_netmask";
+	     }
+
+             $gateway{"$route_network/$route_netmask"}=$route_gateway;
+             if ($route_network eq "0.0.0.0")
+             {
+                 # default_gateway192.168.6.1
+                 print "found default gateway : $route_gateway\n";
+                 $default_gateway{$route_gateway}=1;
+             }
+	 }
+     } @routesp;
+    print "---------\n" if $opt_G;
+    foreach (keys %route)
+    {
+	print "route $_ -> $route{$_}\n" if $opt_G;
+    }
+    print "---------\n" if $opt_G;
+    foreach (keys %gateway)
+    {
+	print "network $_ -> $gateway{$_}\n" if $opt_G;
+    }
+    print "---------\n" if $opt_G;
+    foreach (keys %default_gateway)
+    {
+    	print "gateway $_\n" if $opt_G;
+    }
+    print "----- trimming ----\n" if $opt_G;
+
+    # issue : this is done before definitions....
+    # if (@my_default_routes_to_trim)
+    # #if (1)
+    # {
+    # foreach (keys %gateway)
+    # {
+    #     # debug/test ./base -w -G -p
+    #     $route_network=$_;
+
+    #     print "examine network $route_network\n" if $opt_G;
+    #     next if $route_network eq "0.0.0.0";
+    #     foreach (keys %default_gateway){
+    #         $default_gateway_x=$_;
+    #         #print "match $default_gateway_x ?\n";
+    #         if ($gateway{$route_network} eq $default_gateway_x)
+    #         {
+    #             # nullify route
+    #             delete $route{$route_network};
+    #             print "deleted equivalent to default route $route_network\n" if $opt_G;
+    #         }
+    #     }
+    # }
+    # }
+    
+    print "---------\n" if $opt_G;
+    foreach (keys %route)    {
+	print "route $_ -> $route{$_}\n" if $opt_G;
+    }
+    
+}
+
+
+
+sub ifconfig_get{
+    unless (open (IFCONFIG,"/sbin/ifconfig|")){warn "can't call ifconfig : $!";return;}
+    my @ifconfigp=<IFCONFIG>;
+    my $ifconfig_lines_left_to_examine=0;
+    my $last_vlan_interface=0;
+    my $ifconfig_interface;
+    close IFCONFIG;
+    map {
+
+
+        # parse ifconfig info line by line
+	if (/inet addr:([\d\.]+)\s+/)
+	{
+	        $ifconfig{$1}=1;
+            my $ifconfig_ip=$1;
+	    print "ip found $1 ifconfig_lines_left_to_examine $ifconfig_lines_left_to_examine \n";
+            # what use is the last_vlan_interface...
+            # dedicated to vlan detection
+            
+            #if ($ifconfig_lines_left_to_examine == 1 and $last_vlan_interface ne "0" )
+            #{
+            #    $ifconfig_vlan{$last_vlan_interface}=$ifconfig_ip;
+            #    my $eth_vlan_number=$last_vlan_interface;
+            #    $eth_vlan_number=~ s/e//;
+            #    $ifconfig_vlan_numbers{$eth_vlan_number}=$ifconfig_ip;
+            #    #print "ip  $last_vlan_interface = $ifconfig_vlan{$last_vlan_interface} = $ifconfig_ip; $eth_vlan_number =$ifconfig_vlan_numbers{$eth_vlan_number}\n";
+            #    ${"my_ip_eth".$eth_vlan_number}=$ifconfig_ip;
+            #    &display("my_ip_eth".$eth_vlan_number);
+            #}
+            if ($ifconfig_lines_left_to_examine == 1 && $ifconfig_interface)
+            {
+
+                ${"my_ip_".$ifconfig_interface}=$ifconfig_ip;
+                print "ip $ifconfig_interface : ".${"my_ip_".$ifconfig_interface}."\n";
+            }
+
+	}
+        $ifconfig_lines_left_to_examine--;
+        #if (/^eth(\d+\.\d+)/)
+        #{
+        #    $ifconfig_vlan{"e$1"}=1;
+        #    $ifconfig_more{"e$1"}=1;
+        #    $last_vlan_interface="e$1";
+	#    print "ip eth$1 = 1\n";
+        #    $ifconfig_lines_left_to_examine=1;
+        #}
+        # generic interface finder
+        if (/^(bond\S+|wlan\S+|eth\S+)/)
+        {
+            my $interface_name=$1;
+            # remove displayed ':' in stretch 
+            $interface_name =~ s/:$//;
+            $ifconfig_more{$interface_name}=1;
+
+            #$last_vlan_interface="$1";
+            ${"my_ip_".$interface_name}=$ifconfig_ip;
+            &display("my_ip_".$interface_name);
+	    print "ip $interface_name = $ifconfig_more{$interface_name}\n";
+            $ifconfig_lines_left_to_examine=1;
+            $ifconfig_interface=$interface_name;
+        }
+
+
+	
+    }@ifconfigp;
+    
+
+
+}
+
+sub passwd_get{
+    unless (open (PASSWD,"/etc/passwd")) {warn "can't open /etc/passwd : $!";return;}
+    my @passwd=<PASSWD>;
+    close PASSWD;
+    map {
+	if (/^(\S+?):\S+?:(\d+)/)
+	{
+	    if (! exists $passwd{$2})
+	    {
+		$passwd{$2}=$1;
+		$passwdn{$1}=$2;
+		#print "passwd $1 $2\n";
+	    }
+	    
+	}
+	
+    }@passwd;
+    
+
+
+}
+
+sub services_get{
+    unless (open (SERVICES,"/etc/services")){warn "can't open /etc/services : $!";return;}
+    my @services=<SERVICES>;
+    close SERVICES;
+    map {
+	if (m|^(\S+?)\s+(\S+?)/(\S+)|)
+	{
+		#if ($3 eq "tcp"){$servicestcp{$1}=$2;}
+		#if ($3 eq "udp"){$servicesudp{$1}=$2;}
+		
+	    $services{$1}=$2;
+
+	}
+	
+
+	
+    }@services;
+    
+    #foreach (sort keys %services){print "$_ $services{$_}\n";}
+
+
+}
+sub log_msg_strip{
+
+    my $log_msg=shift;
+
+    my $prefix=10;
+    my $postfix=10;
+    my $total_length=$prefix + $postfix + 1;
+
+    if (length $log_msg > $total_length){
+	$debug_print .= "stripping log msg :  $log_msg ";
+	$log_msg =~ s|^(.{1,$prefix}).*?(.{1,$postfix})$|$1.$2|;
+	$debug_print .= "to $log_msg\n";
+    }
+    
+    return $log_msg;
+}
+sub parse{
+# unused, unusable ? 
+# the idea was to detect unassigned variables, re-assignement of variables
+
+    my $line=shift;
+#	my @vars=split (' ',
+#	$line =~ s/\b[\.\w\-]+\s//g;
+#	$line =~ s/(\b)[\.\w\-]+(\b)/$1$2/g;
+
+    my @vars;
+    while ($line)
+    {
+	if ($line !~ /\$/){ $line="";}
+	if ($line =~ s/^.*?\$(\w+)//g)
+	{
+	    my $tvar=$1;
+	    #print "vare $1=$tvar : $$1=$$tvar\n" if $opt_l;
+	    if (($line =~ /^[^=]/) && ($tvar !~ /^\d+$/))
+	    {
+		# this is not assignation
+		print "var $tvar : $$tvar\n" if $opt_l;
+		push @vars,$tvar;
+	    }
+	}
+    }
+    if (@vars)
+    {
+	print "vars : " if $opt_l;
+	foreach (@vars){
+	    my $var=$_;
+	    if ($$var)
+	    {
+
+		print color("green")," $var : $$var ",color("reset") if $opt_l; 
+		#print "$var " if $opt_l;
+	    }
+	    else
+	    {
+		#print "$var $$var " if $opt_l;
+		print color("red"),"undefined \$",$var,color("reset"),"\n";
+	    }
+	}
+	print "\n" if (@vars && $opt_l);
+    }
+    
+}
+
+sub iptablessavefill{
+    my $line=shift;
+    my $efile=shift;
+    my $table="save_filter";
+    
+    if ($line =~ /iptables/)
+    {
+
+
+	#remove/get table
+	if ($line =~ s/ -t\s+(\w+)\s+/ /)
+	{
+	    $table="save_$1";
+	    #print "table : $table,\n$line\n"; 
+	}
+
+
+	# iptables restore doesn't like single quotes for logging
+	$line =~ s/\'/\"/g;
+
+
+      SWITCH: for ($line) {
+	  
+
+	  # new chain
+	  /iptables\s+-N\s+(\S+)/ && do
+	  {
+
+	      push @$table, ":$1 -";
+	      last SWITCH;
+	  };
+	  
+	  
+	  
+	  # add a new rule
+	  s/iptables\s+\-([IA])/-$1/ && do
+	  {
+	      my $debug_reformat;
+	      $debug_reformat .= "found a line : $line\n";
+	      
+	      # reformat to match iptables-save format
+	      
+	      #if ($line =~ s/^(-A \S+\s+)(-p\s+(?:tcp|udp)\s+)(-[ds] \S+\s+)/$1 $3 $2/){   $debug_reformat .="    new line s $line\n";}
+	      #if ($line =~ s/^(-A \S+\s+)(-p\s+(?:tcp|udp) -m multiport --dports [\d,]+\s+)(-[ds] \S+)/$1 $3 $2/){   $debug_reformat .="    new lin s2 $line\n";}
+
+
+              #                -A POSTROUTING -o eth0    -s   192.168.105.0/255.255.255.0  ! -d 192.168.105.0/255.255.255.0                           -m state --state NEW -j po_out_eth0_allpro
+	      # destination or source first
+	      #if ($line =~ s/^(-[IA] \S+\s+)(-[^ds].*?)((?:\!?\s*-[ds] \S\S+\s+)+)/$1 $3 $2/){   $debug_reformat .="    new line s4 $line\n";}
+	      
+
+
+	      # not multiple modules
+	      if ($line !~ /-m\s+(multiport)/ && $line !~ /-p tcp\s+-m owner/ && $line =~ s/ -p (tcp|udp) / -p $1 -m $1 /     )             { $debug_reformat .="    new line m $line\n";}
+
+	      if ($line =~ s/ -p icmp\s+--icmp-type / -p icmp -m icmp --icmp-type /     )             { $debug_reformat .="    new line i $line\n";}
+
+	      
+
+	      # limit : /sec, not /s
+	      if ($line =~ s| (\d+)/s | $1/sec |    )                {$debug_reformat .="    new line l $line\n";}
+	      if ($line =~ s| (\d+)/m | $1/min |    )                {$debug_reformat .="    new line l $line\n";}
+
+	      # REJECT  : default with  --reject-with icmp-port-unreachable
+	      if ($line =~ s|( REJECT)$|$1 --reject-with icmp-port-unreachable|        )            {  $debug_reformat  .="    new line r $line\n";}
+
+	      # user id : name
+	      # verify existence of it before
+	      if ( $line =~ m|(owner)\s+(\d+)| && exists $passwd{$2})
+		  {
+		      $line =~ s|(owner)\s+(\d+)|$1 $passwd{$2}|       ;              
+		      $debug_reformat .="    new line r $line\n";
+		  }
+
+	      if ($line =~ m|(owner)\s+(\S+)| && exists $passwdn{$2} && $passwdn{$2} == 0) 
+	      {
+		  $line =~ s|(owner)\s+(\w+)|$1 root|; 
+		  $debug_reformat .="    new l root $line\n";
+
+	      }
+	      
+
+
+	      if ($line =~ m|dport\s+([a-z]+)| && exists $services{$1})
+              {
+                  
+                  # print "being rewrite $ps : $line\n";
+                  $line =~ s|dport\s+([a-z]+)|dport $services{$1}|;
+                  $debug_reformat .="    new servic $line\n";
+              }
+	      
+	    
+
+
+	      if ($line =~ s|(--cmd-owner\s+\S+)\s+(--uid-owner\s+\S+)\s+|$2 $1 |) {  $debug_reformat .="    new cmdown $line\n";}
+
+
+	      # icmp type 8
+	      if ($line =~ s|--icmp-type echo-request |--icmp-type 8 |        )            {  $debug_reformat .="    new line p $line\n";}
+
+	      # log level
+	      if ($line =~ s|(--log-level debug)\b|--log-level 7 |        )            {  $debug_reformat .="    new lin l2 $line\n";}
+
+	      # log level emplacement
+	      if ($line =~ s|(--log-level\s+\S+\s+)(--log-prefix ".*?")|$2 $1|        )            {  $debug_reformat .="    new lin l3 $line\n";}
+
+	      # localhosnt
+	      if ($line =~ s|(-[ds])\s+localhost |$1 127.0.0.1 |g        )            {  $debug_reformat .="    new lin lo $line\n";}
+
+
+	      
+	      if ($line =~ m|(-[ds])\s+([\d\.]+)/(\d+)\s+|){
+		  #$debug_reformat .="new net $2/$3\n";
+		  my $nets = new Net::Netmask("$2/$3");
+		  #$debug_reformat .= $nets->mask(),"\n";
+		  my $netsl=$nets->mask();
+		  $line =~ s|(-[ds])\s+([\d\.]+)/(\d+)\s+|$1 $2/$netsl |;
+		  $debug_reformat .="    new line n $line\n";
+	      }
+
+
+	      print $debug_reformat if (0 || $opt_j);
+	      
+	      push @$table,"$line";
+	      #if ($table eq "save_nat"){print "nat : @$table\n"}
+	      last SWITCH;
+	  };
+	  
+	  # flush
+	  /iptables\s+-(F|X)/ && do	  
+	  {
+	      # iptables-restore flush automatically
+	      last SWITCH;
+	  };
+
+	  # policy set
+	  /iptables\s+-P\s+(\S+)\s+(\S+)/ && do
+	  {
+
+	      push @$table, ":$1 $2";
+	      last SWITCH;
+	  };
+
+	  #default
+	  print color("red"),"unknow iptables line to iptablessavefill : -$line-",color("reset"),"\n";
+
+	  }
+
+
+	
+    }
+    
+    # else not matching iptables
+    else {
+
+
+	# only if $opt_t / use_of_iptables_restore, otherwise double execution (by &ex)
+
+	if ($use_of_iptables_restore)
+	{
+	    # to escape echo 0 > /proc/...
+	  SWITCH: for ($line) {
+	      /^echo/ && do {
+		  
+		  unless (system($line) == 0){ 
+		      print color("red"),"die : \n$line\nreturn code : $?",color("reset"),"\n";
+                      # we are in not used code here
+		      &post_death ("iptables-restore failed"); # is it really that, here ?
+
+		  } # system
+		  
+		  last SWITCH;
+	      }; 
+	     
+
+	      print color("red"),"unknow line to iptablessavefill executing it anyway : -$line-",color("reset"),"\n";
+	      unless (system($line) == 0){ 
+
+		  print color("red"),"die : \n$line\nreturn code : $?",color("reset"),"\n";
+                  # we are in not used code here
+		  &post_death("iptables-restore failed"); # is it really that, here ?
+
+	      } #system
+	     
+	  } #SWITCH
+	}
+	return;
+    }# else not iptables
+    
+
+    
+}# iptablessavefill
+
+
+sub sortbychain{
+    my $unsortedsbref=shift;
+    my $tablesb=shift;
+     my @unsortedsb=@$unsortedsbref;
+
+
+    my %chainh;
+    my @sortedsb;
+    foreach (@unsortedsb)
+    {
+	
+	my $chaintosort=$_;
+	#print "chainto sort : $chaintosort\n";
+	my $chainsb="undefined";
+	$chaintosort =~ /-[IA]\s+(\S+)\s+/ ? $chainsb=$1 : print "unknown chain : $chaintosort\n";
+	#print "in chain : $chainsb\n";
+	push  @{$chainh{$chainsb}},$chaintosort;
+	
+    }
+	#($b =~ /-A\s+(\S+)\s+/)[0] cmp ($a =~ /-A\s+(\S+)\s+/)[0] || $a cmp $b;
+
+    my @order=();
+    #print "tablesb : $tablesb\n" if $tablesb;
+    
+    if ($tablesb){
+	#print "hardcoding sorting  order\n";
+      SWITCH: for ($tablesb){
+	  /nat/    && do {@order=("PREROUTING","POSTROUTING","OUTPUT");                  last};
+	  /mangle/ && do {@order=("PREROUTING","INPUT","FORWARD","OUTPUT","POSTROUTING");last};     
+	  /filter/ && do {@order=("INPUT","FORWARD","OUTPUT");last};
+      }
+	
+    }
+    if ($order[0])
+    {
+	#print "processing $tablesb\n";
+	foreach (@order)
+	{
+	     #print "chain : $_\n";
+	     push @sortedsb, @{$chainh{$_}} if  ${$chainh{$_}}[0] ;  
+	     delete $chainh{$_};
+	}
+	# chains left
+	foreach (sort keys %chainh)
+	{
+	    #print "processing alphabetically for $_\n";
+	    #print "chain : $_\n";
+	    push @sortedsb, @{$chainh{$_}};# if  ${$chainh{$_}}[0] ;  
+	}
+      
+
+    }
+
+    else 	
+    {
+	print "processing alphabetically 2 for \n";
+	# alphabetically
+	foreach (sort keys %chainh)
+	{
+	    print "chain : $_\n";
+	    push @sortedsb, @{$chainh{$_}};# if  ${$chainh{$_}}[0] ;  
+	}
+    }
+
+    return @sortedsb;
+    
+}
+
+sub sortiptables{
+
+
+    my $unsortedsiref=shift;
+    my $tablesi=shift;    
+    my @unsortedsi=@$unsortedsiref;
+    my @seedsi;
+    my @seedsi1;
+    my @normalsi;
+    my @normalsi1;
+    my @totalsi;
+
+    #print "tablesi $tablesi\n";# if $tablesi;
+
+    foreach (@unsortedsi)
+    {
+	if (/^:[A-Z]/){
+	    push @seedsi1,$_;
+	    #print "unsorted $_\n";
+	}
+	elsif (/^:/){push @seedsi,$_}
+	elsif ( /-[IA]\s+([A-Z]\S+)\s+/ )
+	{
+	    #print "first : $1\n";
+	    push @normalsi1,$_;
+	}
+	else {push @normalsi,$_}
+	#print "us : $_\n";
+    }
+
+
+    push @totalsi,  @seedsi1;
+    push @totalsi, sort @seedsi;
+    push @totalsi, &sortbychain(\@normalsi1,$tablesi);
+    push @totalsi, &sortbychain(\@normalsi,$tablesi);
+    #@totalsi=sort @seed,sort @normal;
+
+    #foreach (@totalsi) {print "ts : $_\n";}
+    return @totalsi;
+}
+
+sub iptablessavewrite{
+    
+
+    @table_order=("nat","mangle","filter");
+
+    #compensate for an old version ? lenny 1.4.2 and squeeze 1.4.8
+    if ($iptables_version =~ /v1.2/)
+    {
+
+	@table_order=("mangle","nat","filter");
+    }
+
+    foreach my $table (@table_order)
+    {
+	
+	
+	
+	#print SAVE "# $table\n";
+	print SAVE "*$table\n";
+	#print "iptablessavewrite : sorting $table\n";
+	foreach my $lines (&sortiptables(\@{"save_".$table},$table))
+	{
+	    print SAVE "$lines\n";
+	}
+	print SAVE "COMMIT\n";
+    }
+    
+}
+
+sub diff_iptables_save{
+    
+    print "diffing ...\n";
+    my @current_iptables_save=&openfile($iptables_save_before_myfw);
+    my @current_iptables_save_tuned;
+
+    my $current_serial_nb=1;
+    my $total_current_serial_nb=1;
+    my %current_serial;
+    my %total_current_serial;
+
+    # line number -> iptables rule number
+    my %total_conv_current_serial;
+    my $current_table="";
+    my $current_table_new="";
+    foreach (@current_iptables_save)
+    {
+	next if /^\#/;
+	
+	my $current_line=$_;
+
+	if ($current_line =~ /-A\s+(\S+)\s+/) 
+	{
+	    $current_table_new=$1;
+	    if ($current_table_new ne $current_table){$current_serial_nb=1; $current_table=$current_table_new;} 
+	};
+	$current_line =~ s/^(:.*)\s+\[\d+:\d+\]/$1/;
+	#print "$_";
+	#$current_line =~ s/^/$current_serial_nb /;
+	$current_serial{$current_line}=$current_serial_nb;
+	$total_current_serial{$current_line}=$total_current_serial_nb;
+	$total_conv_current_serial{$total_current_serial_nb}=$current_serial_nb;
+	$current_serial_nb++;
+	$total_current_serial_nb++;
+
+	#print $current_serial{$current_line}," ",$total_current_serial{$current_line}," ",  $current_line;
+	push @current_iptables_save_tuned,$current_line;
+    }
+
+
+
+
+
+    my @future_iptables_save=&openfile($save_file);
+    my @future_iptables_save_tuned;
+
+    
+    my $future_serial_nb=1;
+    my $total_future_serial_nb=1;
+    my %future_serial;
+    my %total_future_serial;
+    my %total_conv_future_serial;
+
+    my $future_table="";
+    my $future_table_new="";
+    foreach (@future_iptables_save)
+    {
+	next if /^\#/;
+	
+	my $future_line=$_;
+
+	if ($future_line =~ /-A\s+(\S+)\s+/) 
+	{
+	    $future_table_new=$1;
+	    if ($future_table_new ne $future_table){$future_serial_nb=1; $future_table=$future_table_new;} 
+	};
+	$future_line =~ s/^(:.*)\s+\[\d+:\d+\]/$1/;
+	#print "$_";
+	#$future_line =~ s/^/$future_serial_nb /;
+	$future_serial{$future_line}=$future_serial_nb;
+	$total_future_serial{$future_line}=$total_future_serial_nb;
+	$total_conv_future_serial{$total_future_serial_nb}=$future_serial_nb;
+	
+	$future_serial_nb++;
+	$total_future_serial_nb++;
+
+	#print $future_serial{$future_line}," ",$total_future_serial{$future_line}," ",  $future_line;
+	push @future_iptables_save_tuned,$future_line;
+    }
+
+
+    #exit (1);
+
+
+    
+    
+
+    my $iptables_save_before_myfw_tuned="$iptables_save_before_myfw".".tuned";
+    #print "new iptables : $iptables_save_before_myfw_tuned\n";
+    open (IPSTUNED,">$iptables_save_before_myfw_tuned") || die "cant open $iptables_save_before_myfw_tuned : $!";
+    print IPSTUNED @current_iptables_save_tuned;
+    close IPSTUNED;
+    #&executeiptables;
+    open (DIFF,"diff -w -b -B $iptables_save_before_myfw_tuned $save_file|"); 
+    print "diff -w -b -B $iptables_save_before_myfw_tuned $save_file\n";
+    my @diff=<DIFF>;
+    close DIFF;
+
+    
+    my $line_diff_nb=0;
+    my $insert_line_nb=0;
+    my $delete_line_nb=0;
+
+   
+
+    # how many to shift;
+    my %line_nb_chain;    
+    #my %delete_line_nb_chain;
+
+    my $modified_index=0;
+
+    my @chain_to_be_deleted; my @chain_to_be_added;
+    
+    foreach (@diff)
+    {
+	print "$_" ;
+    }
+    foreach (@diff)
+    {
+	
+
+	my $line_diff=$_;
+	next if /^---$/;
+	if ($line_diff =~ /^([\d]+)(?:,[\d]+)?([ac])([\d\w]+)(,[\d\w]+)$/)
+	{
+	    # ADD
+	    $line_diff_nb=$1;
+	    my $operation_diff=$2;
+
+	    $line_diff_nb++ unless $operation_diff eq "c" ; # its the line after which i should insert ; so i need to add 1;
+	    
+	    $insert_line_nb=$total_conv_current_serial{$line_diff_nb};
+	    $delete_line_nb=$total_conv_current_serial{$line_diff_nb};
+	    
+	    $modified_index=0;
+	    
+	    $line_diff =~ s/^/\# /;
+	    chomp $line_diff;
+	    $line_diff .= " line diff nb  : $line_diff_nb insert_line_nb $insert_line_nb chain conv nb : $total_conv_current_serial{$line_diff_nb}\n";
+	    #next;
+	    print $line_diff;
+	}
+
+	if ($line_diff =~ /^([\d]+),([\d\w]+)d([\d\w]+)$/)
+	{
+	   
+	    # DELETE
+	    $line_diff_nb=$1;
+	    
+	    $delete_line_nb=$total_conv_current_serial{$line_diff_nb};
+	     $modified_index=0;
+
+	    $line_diff =~ s/^/\#/;
+	    chomp $line_diff;
+	    $line_diff .= " line diff nb  : $line_diff_nb delete_line_nb $delete_line_nb chain conv nb : $total_conv_current_serial{$line_diff_nb}\n";
+
+	    #next;
+	    print $line_diff;
+	}
+
+
+	if ($line_diff =~ /^< -A\s+(\S+)\s+/)
+	{ 
+	    # DELETE 
+
+	    
+	    
+	    my $chain_diminished=$1;
+	    if (! exists $line_nb_chain{$chain_diminished}){$line_nb_chain{$chain_diminished}=0};
+
+	    if ($delete_line_nb <= 0){print "#FATAL : delete_line_nb not initialised\n";}
+	    
+	    $delete_line_nb = $delete_line_nb + $line_nb_chain{$chain_diminished} if $modified_index == 0;
+	    $modified_index=1;
+
+	    $line_diff =~ s/^< -A\s+(\S+)\s+(.*)/iptables -D $1 $delete_line_nb \# $2/;
+
+
+	    print "# $line_diff_nb $delete_line_nb line nb chain $line_nb_chain{$chain_diminished}\n";
+	    push @chain_to_be_deleted,$line_diff;
+
+
+	    $line_nb_chain{$chain_diminished}--;
+	    #if ($line_nb_chain{$chain_diminished} < 0){$line_nb_chain{$chain_diminished}=0};
+
+	    
+	}
+	if ($line_diff =~ /^> -A\s+(\S+)\s+/)
+	{
+	   
+	    # ADD
+
+	    my $chain_augmented=$1;
+
+	  
+	    if (! exists $line_nb_chain{$chain_augmented}){$line_nb_chain{$chain_augmented}=0};
+
+	    $insert_line_nb = $insert_line_nb + $line_nb_chain{$chain_augmented} if $modified_index == 0;
+	    $modified_index=1;
+
+	    if ($insert_line_nb <= 0){print "#FATAL : insert_line_nb not initialised\n";}
+	   
+	    #$insert_line_nb = $insert_line_nb +1 ; #$line_nb_chain{$chain_augmented};
+	  
+	    #print "# $line_diff_nb $insert_line_nb  line_nb_chain $line_nb_chain{$chain_augmented}\n";
+	    $line_diff =~ s/^> -A\s+(\S+)\s+/iptables -I $1 $insert_line_nb /;
+	    
+	    $insert_line_nb++;
+	    $line_nb_chain{$chain_augmented}++;
+
+	    push @chain_to_be_added,$line_diff;
+	}
+
+	
+
+    }
+
+    foreach (@chain_to_be_deleted){print}
+    foreach (@chain_to_be_added){print}
+    
+}
+
+
+sub ipacfill{
+    my $line=shift;
+    my $efile=shift;
+    if ($line =~ /iptables/ && 
+	($line =~ / ACCEPT/ ||
+	 $line =~ /-j\s+(in|out)_[[:alnum:]]+/ ||
+	 $line =~ /-j\s+fwd_[[:alnum:]]+_to_[[:alnum:]]+/ ||
+	 $line =~ /-j\s+fwd_[[:alnum:]]+_to_[[:alnum:]]+_\w+/ 
+	 ))
+    {;}else    {return;}
+
+    my $proto='all';
+    my $int='+';
+    my $dport='';
+    my $sport='';
+    $efile='std' unless $efile;
+    #return unless $efile;
+    $efile =~ s|./modules/||;
+    # no perl warnings, use $hostname twice.
+    
+    #$hostname='' unless $hostname;
+    #$name="$hostname $efile ";#print $line,"\n";
+    $name="$efile ";#print $line,"\n";
+    my $chain='ipac~o';
+    my $src='0/0';
+    my $dst='0/0';
+
+    if ($line =~ m|\s-s\s+([\.\d]+(/\d+)?)|){$src=$1;$name.=" from $src";}    
+    if ($line =~ m|\s-d\s+([\.\d]+(/\d+)?)|){$dst=$1;$name.=" to $dst"}
+
+
+    # no commas in rules
+
+    if ($line =~ /--sports?\s+([\d,:]+)/){$sport=" $1";$sport=~ s/((\d+,){9}).*/$1/;$sport =~ s/,/ /g;$name.=" $sport"}
+    if ($line =~ /--dports?\s+([\d,:]+)/){$dport=" $1";
+					  #print "dport $dport\n";
+					  if ($dport=~ s/((\d+,){9}).*/$1/){
+					      #    print "dport modified $dport\n";
+					  }
+					  $dport =~ s/,/ /g;$name.=" $dport"}
+
+    #fuckup avec igmp (protocol number 2)
+    if ($line =~ /\s-p\s+(\w+)/){$proto=$1;$name.=" $proto";if ($proto eq '2'){$proto="tcp"}}
+
+
+    # brain damaged from ipacng
+    # ipac~o for input  
+    # ipac~i for output
+    if ($line =~ /\s-A\s+output/i){$chain="ipac~i";$name.=" out"}
+    if ($line =~ /\s-A\s+input/i){$chain="ipac~o";$name.=" in"}
+
+    # brain damaged from ipacng
+    # ipac~o for input 
+    # ipac~i for output
+    if ($line =~ /\s-A\s+out_([[:alnum:]]+)\s/i){$int=$1;$int =~ s/tun$/tun+/; $chain="ipac~i";$name.=" out"}
+    if ($line =~  /\s-A\s+in_([[:alnum:]]+)\s/i){$int=$1;$int =~ s/tun$/tun+/; $chain="ipac~o";$name.=" in"}
+
+    #if ($line =~ /\s-A\s+(\w*fwd_e1\w*)/i){$chain="ipac~fo";$name.=" fwd out"}    
+    #if ($line =~ /\s-A\s+(\w*fwd_e0\w*)/i){$chain="ipac~fi";$name.=" fwd in"}
+
+    if ($line =~ /\s-(j|A)\s+(\w*fwd_[[:alnum:]]+_to_(e1))/i){$chain="ipac~fi";$name.=" fwd in";$int="eth1"}    
+    if ($line =~ /\s-(j|A)\s+(\w*fwd_[[:alnum:]]+_to_(tun))/i){$chain="ipac~fi";$name.=" fwd in";$int="tun+";}    
+    if ($line =~ /\s-(j|A)\s+(\w*fwd_[[:alnum:]]+_to_(e0))/i)    {$chain="ipac~fo";$name.=" fwd out";$int="eth0"}
+    
+    
+
+    # interface ?
+
+    if ($line =~ /\s-i\s+(\w+)/i){$int="$1";}
+    # priority to  out 
+    if ($line =~ /\s-o\s+(\w+)/i){$int="$1";}
+
+    $name.=" $int" unless $int eq "+";
+
+    
+    #$name="rule $ipacnb";
+
+    # Don't use symbols other than '0-9A-z[space]' in rules names. You may encounter
+    # some strange troubles.
+    
+
+    #print "name -$name-\n";
+    #$name =~ s/\s\s+/ /g;
+    #$name =~ s/^\s+//g;
+    #$name =~ s/\s+$//g;
+    #print "name -$name-\n";
+    # 45 max
+
+    #my $namesub=substr ($name,0,37);
+
+    #$namesub =~ s/\s+$//g;
+
+
+    my $ipacline="$chain|$int|$proto|$src$sport|$dst$dport";
+    
+
+    &ipac_rule_add($name,$ipacline,$line);
+
+
+}
+
+
+sub ipac_rule_add{
+    
+    # full name of rule,
+    # line without name ,
+    # iptables chain
+    my $ipac_full_name=shift;
+    my $ipacline_partial=shift;
+    
+ 
+    my $chain=shift; # chain is the iptables chain used to generate the ipacline, but can be anything, like comments
+
+    
+    my $name=$ipac_full_name;
+
+    #$hostname='' unless $hostname;
+    #$name="$hostname $name";#print $line,"\n";
+
+
+    $name =~ s/\s\s+/ /g;
+    $name =~ s/^\s+//g;
+    $name =~ s/\s+$//g;
+    #print "name -$name-\n";
+    # 45 max
+
+
+    my $namesub=substr ($name,0,37);
+
+    $namesub =~ s/\s+$//g;
+
+    my $ipacline="$namesub|$ipacline_partial";
+
+    my $id=$namesub;
+    $id=substr ($id,0,25);
+
+    my $shortid='';
+    
+    if ($namesub =~ /^([\w\.\-]+)\s?/)
+    {     $shortid=$1; }
+    else {print "no shortid from -$namesub-\n"}
+
+    $ipacnbs="0" x (4 - length $ipacnb).$ipacnb;
+
+    push @ipac_lines_iptables, "#$chain";
+    
+    
+
+    if (! exists  $ipacrules_full_name{$ipacline}){
+
+	#print "new ipac line : $ipacline\n";
+	#print "new ipacrule : $chain\n";
+
+	# specific number 
+	if (exists $ipac_nb{$shortid})
+	{$ipac_nb{$shortid}++;}
+	else {$ipac_nb{$shortid}=1};
+
+	$ipacline="$ipac_nb{$shortid} ".$ipacline;
+	$id = "$ipac_nb{$shortid} ".$id;
+	#$shortid = "$ipac_nb{$shortid} ".$shortid;
+
+	$ipacrulesnb{$ipacline}=$ipacnbs;
+	
+	$ipacrules_full_name{$ipacline}="$ipac_nb{$shortid} $name";
+	$ipacrules_iptables_chains{$ipacline}=$chain;
+	$ipacrules_id{$ipacline}="$ipac_nb{$shortid} $shortid";
+
+
+	push @ipac_lines,$ipacline;
+	push @ipac_lines_iptables, $ipacline;
+	
+	$ipacnb++;
+
+    } 
+
+}
+
+sub ipacdomain {
+    if ($my_domain)
+    {
+	my @ipac_domains;
+	push @ipac_domains, $my_domain;
+	push @ipac_domains, @my_ipac_domains if @my_ipac_domains;
+	
+	my %ipac_domains_uniq;
+	foreach my $ipac_uniq (@ipac_domains){
+	    $ipac_domains_uniq{$ipac_uniq}=1;
+	}
+	@ipac_domains=keys %ipac_domains_uniq;
+
+	foreach my $ipac (@ipac_domains){
+	    #@ipac_domain
+	    #foreach $ipacdom (@ipac_domains){
+	    #my $net=$$ipacdom;
+	    my $net=$$ipac;
+	    #print "domain $ipac : $net\n";
+	    if ($net =~ m|(\d+\.\d+\.\d+)\.(\d+)/(\d+)|)
+	    {
+
+		my @network;
+		my $netprefix=$1;
+		my $netsuffix=$2;
+		my $netmask=$3;
+		if ($netmask == 28)
+		{
+		    foreach my $lastip (0 + $netsuffix .. 15 + $netsuffix)	
+		    {
+			push @network,"$netprefix.$lastip";
+		    }
+		}
+		else # ($netmask == 24)
+		{
+		    foreach my $lastip (0 .. 255)
+		    {
+			push @network,"$netprefix.$lastip";
+		    }
+		}
+		foreach (@network)
+		{
+
+
+
+		    my $ipi=$_;
+
+		    
+		    my @intsort=("input from","output to");
+		    # ipacng braindamaged
+		    my %int=("input from" => "ipac~o" ,"output to" => "ipac~i");
+		    if ($my_ip_eth1)
+		    {
+			# don't want the Name "main::my_ip_eth1" used only once: possible typo at ./base line xxx
+			my $dummy_var=$my_ip_eth1;
+			#print "adding forward ipac rules\n";
+			#$int{"fwd_xxx_to_e1"}='-s';
+			$int{"fwd from"}='ipac~fi';
+			$int{"fwd to"}='ipac~fo';
+			push @intsort,("fwd from","fwd to") ;
+		    }
+		    foreach my $inti (@intsort)
+		    {
+			my $prefix='';
+			#$prefix = "$inti " if $inti =~ /^fwd/;
+			#my $fake_iptables="iptables -A  $inti -p all $int{$inti} $ipi -j ACCEPT";
+			#print "$fake_iptables\n";
+			#&ipacfill ($fake_iptables,"${prefix}ip");
+			
+			my $src='0/0';
+			my $dst='0/0';
+
+			$dst = $ipi if $inti eq "output to";
+			$src = $ipi if $inti eq "input from";
+			$dst = $ipi if $inti eq "fwd to";
+			$src = $ipi if $inti eq "fwd from";
+			
+			&ipac_rule_add("byip $inti $ipi","$int{$inti}|+|all|$src|$dst","ipac domain add byip")
+						
+	
+			
+		    }
+		    
+		}
+	    }
+	}
+	foreach my $ipac (@ipac_domains){
+	    if ($my_ip_eth1)
+	    {
+		foreach  my $ipac2 (@ipac_domains){
+		    next if $ipac2 eq $ipac;
+		    #print "$ipac -> $ipac2\n";
+		    my $net=$$ipac;
+		    my $net2=$$ipac2;
+		    &ipac_rule_add("general fwd $ipac $ipac2","ipac~fi|+|all|$net|$net2","ipac domain fwd net add")
+		    }
+	    }
+		    
+	}
+	
+	foreach my $ipac (@ipac_domains){
+	    my $net=$$ipac;
+	    
+	    &ipac_rule_add("general out to $ipac" ,"ipac~i|+|all||$net","ipac_domain by in net add");
+	    &ipac_rule_add("general in from $ipac","ipac~o|+|all|$net|","ipac_domain by ou net add");
+	    
+	}
+    }
+}
+
+
+sub ipac_forward
+{
+
+  if ($my_ip_eth1)
+  {
+      my $fake_iptables;
+      my @intsort=("eth1","eth0","tun");
+      foreach my $inti (@intsort){
+	  &ipac_rule_add("general fwd from $inti","ipac~fi|$inti|all|0/0|0/0","ipac_forward from int add");
+	  &ipac_rule_add("general fwd to $inti",  "ipac~fo|$inti|all|0/0|0/0","ipac_forward to int add");
+      }
+  }
+}
+
+sub ipac_input_output
+{
+
+
+    my $fake_iptables;
+    my @int=("eth0","tun+","!lo","lo","");
+    if ($my_ip_eth1)
+    {
+	push @int, "eth1";
+    }    
+    foreach my $inti (@int){
+	&ipac_rule_add("general input $inti","ipac~o|$inti|all|0/0|0/0","ipac_input_output");
+	&ipac_rule_add("general output $inti","ipac~i|$inti|all|0/0|0/0","ipac_input_output");
+
+	
+
+    }
+	  
+
+}
+
+sub cut29
+{
+    my $string=shift;
+    my $l=length $string ;
+    if ($l > 29)
+    {
+	$toolong= $l - 29;
+	print color("red"),"log prefix : '$string' is $toolong too long, cutting it",color("reset"),"\n";
+	$string=substr ($string,0,29);
+	print color("red"),"new log prefix : '$string'",color("reset"),"\n";
+    }
+    return $string;
+    
+
+}
+
+sub flush
+{
+
+    # remove any rule
+    `if [ -f /usr/sbin/fetchipac ] ; then /usr/sbin/fetchipac 2>/dev/null  ;else echo ipac-ng not present/not setted; fi`;
+    print OUT "if [ -f /usr/sbin/fetchipac ] ; then /usr/sbin/fetchipac 2>/dev/null  ;else echo ipac-ng not present/not setted; fi\n";
+     &ex('iptables -F');
+     &ex('iptables -X');
+     &ex('iptables -F -t nat');
+     &ex('iptables -X -t nat');
+     &ex('iptables -F -t mangle');
+     &ex('iptables -X -t mangle');
+
+# breaks with -t
+#     system('iptables -F');
+#     system('iptables -X');
+#     system('iptables -F -t nat');
+#     system('iptables -X -t nat');
+#     system('iptables -F -t mangle');
+#     system('iptables -X -t mangle');
+}
+
+sub flush_system
+{
+    #`if [ -f /usr/sbin/fetchipac ] ; then /usr/sbin/fetchipac 2>/dev/null  ;else echo ipac-ng not present/not setted; fi`;
+    #print OUT "if [ -f /usr/sbin/fetchipac ] ; then /usr/sbin/fetchipac 2>/dev/null  ;else echo ipac-ng not present/not setted; fi\n";
+     system('iptables -F');
+     system('iptables -X');
+     system('iptables -F -t nat');
+     system('iptables -X -t nat');
+     system('iptables -F -t mangle');
+     system('iptables -X -t mangle');
+}
+
+
+
+
+
+sub stop
+{
+    print "stopping fw,";
+
+    # 2007.07.06 otherwise this is not executed ?... not working anyway
+    #$exec_of_iptables = 1;
+    my $do_not_touch_forward=shift;
+    $do_not_touch_forward="" unless $do_not_touch_forward;
+
+    foreach("OUTPUT","INPUT"){&ex("iptables  -P $_ ACCEPT");}
+    #foreach("OUTPUT","INPUT"){system("iptables  -P $_ ACCEPT");}
+    if ($opt_f || $do_not_touch_forward eq "do_not_touch_forward")
+    {   
+	print "keeping forwarding, but dropping new connexions...\n";
+	&ex("iptables -A FORWARD -m state --state ESTABLISHED,RELATED  -j ACCEPT");
+	&ex("iptables -P FORWARD DROP");
+	#system("iptables -A FORWARD -m state --state ESTABLISHED,RELATED  -j ACCEPT");
+	#system("iptables -P FORWARD DROP");
+    }
+    else 
+    {
+	print "disabling forwarding...\n";
+	`echo 0 > /proc/sys/net/ipv4/ip_forward`;
+	&ex("iptables -P FORWARD DROP");
+    }
+
+
+    #`[ -f /usr/sbin/fetchipac ] && /usr/sbin/fetchipac -S || echo ipac-ng not present`;
+
+}
+
+
+sub stop_system
+{
+
+    my $do_not_touch_forward=shift;
+    $do_not_touch_forward="" unless $do_not_touch_forward;
+
+    print "stopping fw,";
+
+    foreach("OUTPUT","INPUT"){system("iptables  -P $_ ACCEPT");}
+
+    if ($opt_f || $do_not_touch_forward eq "do_not_touch_forward")
+    {   
+	print "keeping forwarding, but dropping new connexions...\n";
+	system("iptables -A FORWARD -m state --state ESTABLISHED,RELATED  -j ACCEPT");
+	system("iptables -P FORWARD DROP");
+    }
+    else 
+    {
+	print "disabling forwarding...\n";
+	`echo 0 > /proc/sys/net/ipv4/ip_forward`;
+	system("iptables -P FORWARD DROP");
+    }
+
+
+    `[ -f /usr/sbin/fetchipac ] && /usr/sbin/fetchipac -S || echo ipac-ng not present`;
+
+}
+
+# tests : 
+# with ruleset_is_too_big_to_fit_twice_in_ram=1
+#  ^C  check / ^ C in iptables-restore check / test.will.fail.definitions / and test.will.fail.iptables check
+# with ruleset_is_too_big_to_fit_twice_in_ram=0
+#  ^C  check / ^ C in iptables-restore check /test.will.fail.definitions check / and test.will.fail.iptables check
+
+# used in catch_zap / signals / ^C / wrong hosts in definitions / and general failure
+# restore even if it shouldnt
+# if -n / -R / .. dont bother
+sub post_death{
+
+    $reason_of_death = shift;
+    $reason_of_death="N/A" unless $reason_of_death;
+    
+  SWITCH: for ($reason_of_death){
+      /undefined variable/ && do {print "$reason_of_death : no reason to iptables-restore, should_restore_if_crash=0\n"; $should_restore_if_crash=0;last SWITCH};
+  }
+
+    print "dying reason : $reason_of_death\n";
+    
+    if ($iptables_restore_started == 1)
+    {
+        print "iptables_restore_started = $iptables_restore_started, setting should_restore_if_crash to 1\n";
+        $should_restore_if_crash = 1;
+        
+    }
+
+    if ($booting_the_os){
+	    my $syslog_try=qq/syslog('syslog|debug','fw dying : stopping it since the os is booting');/;
+	    eval $syslog_try;
+                                  	    
+            print "fw dying : stopping it since the os is booting\n";
+	    &flush_system;
+	    &stop_system;
+	}
+        # null or on the top options
+	elsif ($opt_n || $opt_R || $opt_m || $should_restore_if_crash == 0 )
+        #elsif($should_restore_if_crash == 1)
+	{
+            my $not_restoring_msg="not restoring ruleset";
+	    if ($opt_n) {$not_restoring_msg.=" opt_n:$opt_n";}
+	    if ($opt_m) {$not_restoring_msg.=" opt_m:$opt_m";}
+	    if ($opt_R) {$not_restoring_msg.=" opt_R:$opt_R";}	    
+            if ($iptables_restore_started) {$not_restoring_msg.=" iptables_restore_started=$iptables_restore_started";}
+	    print "not restoring ruleset :  should_restore_if_crash $should_restore_if_crash \n";
+	}
+
+    # ^C when iptables-restore
+    elsif ($iptables_restore_started && $reason_of_death eq "catch_zap")
+    {
+        
+        print "will iptables-restore < $iptables_save_before_myfw \n";
+        $ipr_from_saved=`iptables-restore <  $iptables_save_before_myfw 2>&1`;
+        if ($ipr_from_saved)
+        {
+            # iptables restore from saved failed
+            print color("red"),"die : \n iptables-restore <  $iptables_save_before_myfw; return code : $?\n$ipr",color("reset"),"\n";
+            
+        }
+        else
+        {
+            print color("green"),"successful restore iptables-restore <  $iptables_save_before_myfw ",color("reset"),"\n";
+            
+        }
+    }
+        # "normal" death
+    else {
+        
+            if ($ruleset_is_too_big_to_fit_twice_in_ram == 0)
+            {
+                my $die_mesg="fw dying : iptables_restore died. not restoring since iptables-restore did not touch the live iptables ";
+                my $syslog_try=qq/syslog('syslog|debug',"$die_mesg");/;
+                eval $syslog_try;
+                print "$die_mesg\n";
+            }
+            else
+            {
+                print "ruleset_is_too_big_to_fit_twice_in_ram=$ruleset_is_too_big_to_fit_twice_in_ram\n";
+
+                print "will iptables-restore < $iptables_save_before_myfw \n";
+                $ipr_from_saved=`iptables-restore <  $iptables_save_before_myfw 2>&1`;
+                if ($ipr_from_saved)
+                {
+                    # iptables restore from saved failed
+                    print color("red"),"die : \n iptables-restore <  $iptables_save_before_myfw; return code : $?\n$ipr",color("reset"),"\n";
+                    
+                }
+                else
+                {
+                    print color("green"),"successful restore iptables-restore <  $iptables_save_before_myfw ",color("reset"),"\n";
+                    
+                }
+            }
+	}
+	exit (1);
+        #if ($should_restore_if_crash == 1){
+        #}
+        #  else {print "not restoring due to should_restore_if_crash=$should_restore_if_crash \n";}
+}
+
+
+
+sub main{
+
+    unless ($opt_w)
+    {
+        chdir '/usr/local/etc/fw' or die "Can't cd to /usr/local/etc/fw: $!\n";
+    }
+    &routes_get;
+    &ifconfig_get;
+    &passwd_get;
+    &services_get;
+
+    if ($opt_t){$use_of_iptables_restore=1}
+    if ($opt_T){$use_of_iptables_restore=0}
+    if ($use_of_iptables_restore || $opt_F)
+    {
+	$exec_of_iptables=0;
+    }
+
+   
+
+  SWITCH: {
+      
+      
+
+      # print definitions
+      if ($opt_p) {&executeiptables("modules/definitions");last SWITCH;};
+
+      # print help
+      if ($opt_h) {&print_usage;last SWITCH;};
+
+      #  TO stop the fw
+      if ($ARGV[0] && ("$ARGV[0]" eq "stop"))
+      {
+	  &redefine_out_files;
+	  &open_default_files;
+	  &flush;
+	  &stop; 
+	  &iptablessavewrite;
+	  # no '--noflush' passed to iptables_restore, we are stopping rite now
+	  &iptables_restore($save_file);
+          &write_done_to_history;
+	  last SWITCH;
+      };
+
+      # TO LOAD specific stuff
+      # execute a script with definitions loaded
+      # also : load a module only 
+      if ($opt_m || $opt_R) {
+	  &redefine_out_files;
+	  &open_default_files;
+
+	  $should_restore_if_crash = 0;	  	 
+	  
+	  &executeiptables("modules/definitions");
+	  
+	  my $cmdline_arg="";
+	  $cmdline_arg=$opt_m if $opt_m;
+	  $cmdline_arg=$opt_R if $opt_R;
+
+	  print color("blue"),$cmdline_arg,color("reset"),"\n" unless $opt_q;
+
+	  print OUT "##### $cmdline_arg\n";
+
+	  if ($opt_m)
+	  {
+	      # wont execute if -t
+	      &executeiptables($opt_m);
+	  }
+
+	  if ($opt_R)
+
+	  {
+	      print "opt_R : $opt_R\n";
+	      my $raw_iptables="/usr/local/etc/fw/raw_iptables";
+	      open (RAW,">$raw_iptables") || die "cant open $raw_iptables : $!";
+	      print RAW $opt_R,"\n";
+	      close RAW;
+	      &executeiptables($raw_iptables);
+
+	  }
+
+	  &iptablessavewrite;	
+	  close SAVE;
+
+	  # -t -m
+	  # -t default now 
+	  #if ($opt_t)
+	  #{
+
+	  unless ($opt_n){
+              # standard call for applying firewall rules
+	      &iptables_restore($save_file,"--noflush");
+	  }
+	  #}
+          #print "here\n";
+
+          &write_done_to_history;
+
+	  last SWITCH;
+      };
+
+      
+      # DIFF MODE, not working as of 2010.01.17
+      if ($opt_F)
+      {
+	  
+	  
+	      &open_default_files;    
+
+	      &dump_rules_iptables_save_before_myfw(); 
+	      
+	      &set_policies;
+	      # real stuff (will see if -t is used)
+	      &execute_config($config);
+
+	      # write the file for iptables-restore
+	      &iptablessavewrite;	
+	      close SAVE;
+
+
+
+
+	      &diff_iptables_save;
+              &write_done_to_history;
+	      last SWITCH;
+      }
+
+      
+
+      
+      # else, start
+      &start;
+    }
+    openlog("fw",'cons,pid', 'user');
+    my $syslog_end_msg="fw done";
+    my $syslog_try=qq/syslog('syslog|debug','$syslog_end_msg ($msg)');/;
+    &write_done_to_history;
+    if ($ARGV[0]  && $ARGV[0] eq "start")
+    {
+        # supposedly called from rcS.d, so print to stdout
+        print "fw done, pid $$, called with @ARGV\n";
+    }
+    
+
+    eval $syslog_try;
+}
+
+sub write_done_to_history
+{
+    my $ends_now_string = strftime "%Y.%m.%d %H:%M:%S", localtime;
+    # if there are some arguments, we dont write end of it since it's usually fast
+    print HISTORY "$ends_now_string : fw done $msg\n" unless $msg_has_argv_included;
+    close HISTORY;   
+}
+
+sub dump_rules_iptables_save_before_myfw{
+    
+    print "dumping rules with iptables-save...\n" unless $opt_q;
+    system("iptables-save > $iptables_save_before_myfw");
+}
+
+sub set_policies
+{
+
+    # ACCEPT -> DEBUG ONLY
+    
+    $filter_policy="DROP";
+    $filter_policy="ACCEPT" if $opt_a;
+    
+
+# DROP BY DEFAULT for INPUT, OUTPUT, FORWARD
+    foreach("INPUT","FORWARD","OUTPUT"){&ex("iptables  -P $_ $filter_policy");}
+# ACCEPT BY DEFAULT for NAT, MANGLE
+    foreach("PREROUTING","POSTROUTING","OUTPUT"){&ex("iptables -t nat  -P $_ ACCEPT");}
+    foreach("PREROUTING","INPUT","FORWARD","OUTPUT","POSTROUTING"){&ex("iptables -t mangle  -P $_ ACCEPT");}
+
+# incomming connexions 
+    &ex("iptables -A INPUT   -m state --state RELATED,ESTABLISHED  -j ACCEPT");
+# outgoing connexions 
+    &ex("iptables -A OUTPUT  -m state --state RELATED,ESTABLISHED  -j ACCEPT");
+    
+
+}
+
+# main is the main function, not start
+sub start{
+    unless ($opt_n)
+    {
+	&dump_rules_iptables_save_before_myfw();
+    }
+    
+    &open_default_files;    
+
+    # remove all iptables rules
+    &flush;
+    
+    &set_policies;
+    
+
+
+    # can still be used, supersed by $hostname="dynip";
+    if ($ARGV[0] && ("$ARGV[0]" =~ /^\d+\.\d+\.\d+\.\d+$/))
+    {
+	
+	$ipdyn=$ARGV[0];
+	print color('red'),"my ip : $ipdyn",color ('reset'),"\n";
+    }
+
+    # real stuff (will see if -t is used)
+    &execute_config($config);
+
+    # write the file for iptables-restore
+    &iptablessavewrite;	
+    close SAVE;
+
+
+    if ($use_of_iptables_restore && ! $opt_n)
+    {
+	&iptables_restore($save_file);
+    }
+
+
+    &ipac if  $opt_i;
+    close OUT;
+
+    closelog(); # syslog
+}
+
+# standard call for applying firewall rules
+sub iptables_restore{
+    
+    my $iptables_restore_file=shift;
+
+
+    my $noflush=shift;
+    $noflush="" unless $noflush;
+    my $ipr;
+
+    if (  $ruleset_is_too_big_to_fit_twice_in_ram && $noflush eq "")
+    {
+        print "will flush iptables before due to special restrictions on this machine\n";
+        &flush_system;
+        &stop_system("do_not_touch_forward");
+    }
+    $iptables_restore_started=1;
+    print "applying rules with iptables-restore $noflush from $iptables_restore_file...\n";
+    # really works.
+    $ipr=`iptables-restore $noflush < $iptables_restore_file 2>&1`;
+
+
+
+    chomp $ipr;
+
+    if ($ipr)
+    { 
+        # iptables restore died
+
+
+	print color("red"),"die : \niptables-restore $noflush < $iptables_restore_file ; return code : $?\n$ipr",color("reset"),"\n";
+	
+	
+        # print debug output
+	if ($ipr =~ /line (\d+)/)
+	{
+	    my $ipr_line_number=$1;
+	    my $ipr_counter=1;
+	    open (IPR,"<$iptables_restore_file");
+	    IPRLOOP : while (<IPR>)
+	    {
+		if ($ipr_line_number == $ipr_counter)
+		{
+		    chomp;
+		    print color("red"),"$_",color("reset"),"\n";
+		    close IPR;
+		    last IPRLOOP;
+		}
+		$ipr_counter++;
+	    }
+	    
+	}
+	
+	#&flush;
+	#&stop;
+        
+        # will restore if needed
+	&post_death ("iptables-restore failed");
+	exit 1;
+    };
+    
+    
+}
+
+sub ipac{
+    
+    # ipac now
+    #print color('green'),"ipac:",color ('reset'),"\n" unless $opt_q;
+
+    &ipacdomain;
+
+
+    # an option to remove  all ipac rules ?
+    # need a dummy ipac rule so that fetchipac does not complain
+    &ipac_forward;
+    &ipac_input_output;
+
+    my $ipacout="/usr/local/etc/fw/ipac.out";
+    open (IPACOUT,">$ipacout") || die "cant open $ipacout : $!";
+    my $ipacoutd="/usr/local/etc/fw/ipacd.out";
+    open (IPACOUTD,">$ipacoutd") || die "cant open $ipacoutd : $!";
+    my $ipacoutm="/usr/local/etc/fw/ipacm.out";
+    open (IPACOUTM,">$ipacoutm") || die "cant open $ipacoutm : $!";
+    my $ipacoutn="/usr/local/etc/fw/ipacnames.out";
+    open (IPACOUTN,">$ipacoutn") || die "cant open $ipacoutn : $!";
+    my $ipacoutc="/usr/local/etc/fw/ipacchains.out";
+    open (IPACOUTC,">$ipacoutc") || die "cant open $ipacoutc : $!";
+
+
+
+
+    #foreach (sort  { $ipacrulesnb{$a} cmp $ipacrulesnb{$b} } keys %ipacrulesnb){print IPACOUT "$ipacrulesnb{$_} $_"}
+    foreach (@ipac_lines)
+    {
+	my $ipac_line=$_;
+	print IPACOUT "$ipac_line\n";
+	#print IPACOUTD "#$ipacrules_iptables_chains{$ipac_line}\n";
+	#print IPACOUTD "#$ipacrules_chains{$_}\n";
+	#print IPACOUTD "#$ipacrules_full_name{$_}\n";
+	#print IPACOUTD "$ipac_line\n";
+	# name
+	print IPACOUTN "$ipacrules_id{$ipac_line}|$ipacrules_full_name{$ipac_line}\n";
+	# iptables (?)
+	print IPACOUTC "$ipacrules_id{$ipac_line}|$ipacrules_iptables_chains{$ipac_line}\n";
+	# munin
+	print IPACOUTM "ln -s /root/cvs/common/etc/munin/plugins/ipacng2 /etc/munin/plugins/ipacng2_$ipacrulesnb{$_}\n";
+    }
+
+    foreach (@ipac_lines_iptables)
+    {
+	# ipac with comments
+	print IPACOUTD "$_\n";
+    }
+    
+#ex('if [ -f /usr/sbin/fetchipac ] ;then /usr/sbin/fetchipac -S ;else echo ipac-ng not present;fi');
+# while fetchipac is experimental
+    system('if [ -f /usr/sbin/fetchipac ] ;then /usr/sbin/fetchipac -S ;fi');
+
+    print IPACOUTM "/etc/init.d/munin-node restart\n";
+
+
+    close IPACOUT;
+    close IPACOUTD;
+    close IPACOUTM;
+    close IPACOUTN;
+    close IPACOUTC;
+    chmod 0755, $ipacoutm;
+
+}
+
+
+&main;
+
+

@@ -1,0 +1,7 @@
+foreach $m (@my_mailservers){
+foreach $int ("e0","tun"){
+iptables -A fwd_${int}_to_e1 -p tcp   -d  $$m     --dport 25  -m limit --limit 30/m --limit-burst 50 -j  OLACCEPT smtp in fwd
+iptables -A fwd_${int}_to_e1 -p tcp   -d  $$m     --dport 587 -m limit --limit 30/m --limit-burst 50 -j  OLACCEPT smtp in fwd
+iptables -A fwd_e1_to_${int} -p tcp   -s  $$m     --dport 113 -m limit --limit 30/m --limit-burst 50 -j  OLACCEPT ident out fwd
+}
+}

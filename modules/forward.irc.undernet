@@ -1,0 +1,4 @@
+foreach $server_irc ( @undernet) {
+iptables -A fwd_e1_to_e0 -s $nic -d $server_irc -p tcp --dport 6667  -m limit --limit 6/m --limit-burst 20 -j OLACCEPT irc undernet
+}
+

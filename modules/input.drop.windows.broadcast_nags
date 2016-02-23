@@ -1,0 +1,2 @@
+iptables -A INPUT -i eth2 -s $my_lan_hosts -d 192.168.5.255 -p udp -m multiport --dports 137,138,139 -j DROP
+iptables -A INPUT -i eth3 -s $my_lan_hosts -d 192.168.4.255 -p udp -m multiport --dports 137,138,139 -j DROP

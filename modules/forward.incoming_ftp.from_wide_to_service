@@ -1,0 +1,5 @@
+foreach $f (@my_ftpservers){
+foreach $int ("e0","tun"){
+iptables -A fwd_${int}_to_e1 -d $$f -p tcp --dport 21  -m limit --limit 1/s --limit-burst 20 -j OLACCEPT ftp $f
+}
+}

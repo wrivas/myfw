@@ -1,0 +1,6 @@
+
+foreach $scanner (@legit_scanner ) {
+iptables -A in_eth0 -p tcp  -s $scanner -m multiport --dport 80,113,3128,6588,8080  -m limit --limit 10/m -j LOG --log-level debug --log-prefix "legit scan : "
+iptables -A in_eth0 -p tcp  -s $scanner -m multiport --dport 80,113,3128,6588,8080  -m limit --limit 10/m -j REJECT
+}
+

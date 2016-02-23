@@ -1,0 +1,3 @@
+iptables -A fwd_e1_to_e0 -p tcp  --dport 21  -m limit --limit 10/s --limit-burst 10 -j OLACCEPT ftp fwd
+#modprobe ip_conntrack_ftp
+#modprobe ip_nat_ftp

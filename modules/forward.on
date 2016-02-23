@@ -1,0 +1,352 @@
+# FORWARD ON
+iptables -A FORWARD -m state --state ESTABLISHED,RELATED  -j ACCEPT
+
+# 2013.08.26 should use -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT ?
+# and -m conntrack --ctstate NEW -j ACCEPT ?
+
+echo 1 > /proc/sys/net/ipv4/ip_forward
+
+# should be in modules/definitions. see emris example
+#$my_forwarding=1;
+
+#if ($my_lan_hosts){
+
+# cycle through all interfaces
+#foreach $i ('1','2','3',keys %ifconfig_vlan_numbers) {
+foreach $i (keys %ifconfig_more) {
+    if ($i eq "eth0")
+    {
+        #print "eth0 already done\n";
+        next;
+    }
+    print "forward : ${i}...\n";
+
+
+  #if (${"my_ip_eth".$i}){
+
+    if (${"my_ip_".$i}){
+        $tempip=${"my_ip_".$i};
+    }
+    else     {
+        $tempip="0.0.0.0/0";
+    }
+
+
+    print "defining forward rules for ${i}...\n";
+    
+    # reduced name interface
+    $ri=$i;
+
+    $ri=~ s/^bond/b/;
+    $ri=~ s/^eth/e/;
+    $ri=~ s/^wlan/w/;
+    $ri=~ s/^veth/ve/;
+    $ri=~ s/^veneth/vn/;
+    $ri=~ s/^vlan/vl/;
+    $ri=~ s/^vmbr/vb/;
+    $ri=~ s/^tap/t/;
+
+
+    iptables -N fwd_${ri}_to_e0
+    iptables -N fwd_${ri}_to_e0_allsrc
+    iptables -N fwd_${ri}_to_e0_allpro
+	    
+    iptables -N fwd_e0_to_${ri}
+    iptables -N fwd_e0_to_${ri}_allsrc
+    iptables -N fwd_e0_to_${ri}_allpro
+
+    iptables -N fwd_${ri}_to_tun
+    iptables -N fwd_${ri}_to_tun_allsrc
+    iptables -N fwd_${ri}_to_tun_allpro
+
+    iptables -N fwd_tun_to_${ri}
+    iptables -N fwd_tun_to_${ri}_allsrc
+    iptables -N fwd_tun_to_${ri}_allpro
+	    
+	    
+     iptables -N fwd_all_to_${ri}
+     iptables -N fwd_all_to_${ri}_allsrc
+     iptables -N fwd_all_to_${ri}_allpro
+	    
+     iptables -N fwd_${ri}_to_all
+     iptables -N fwd_${ri}_to_all_allsrc
+     iptables -N fwd_${ri}_to_all_allpro
+
+     # self forward ??
+     iptables -N fwd_${i}
+     iptables -N fwd_${i}_allsrc
+     iptables -N fwd_${i}_allpro
+     foreach $proto ( "tcp --syn","udp" ) {
+         iptables -A FORWARD -i ${i} -o ${i} -p $proto --sport 1024:65535 -m state --state NEW -j fwd_${i}
+         iptables -A FORWARD -i ${i} -o ${i} -p $proto                    -m state --state NEW -j fwd_${i}_allsrc
+      }
+     iptables -A FORWARD -i ${i} -o ${i}                              -m state --state NEW -j fwd_${i}_allpro
+
+
+# for each interface, cycle through all interfaces
+#foreach $j ('1','2','3',keys %ifconfig_vlan_numbers) {
+#    if (${"my_ip_eth".$j}){
+#        # WARNING : e1 - e1 
+#         if ($i != $j) {
+            
+      
+#             iptables -N fwd_${ri}_to_e${j}
+#             iptables -N fwd_${ri}_to_e${j}_allsrc
+#             iptables -N fwd_${ri}_to_e${j}_allpro
+	    
+
+#             foreach $proto ( "tcp --syn","udp" ) {
+#                 iptables -A FORWARD -i ${i} -o ${j}  -p $proto --sport 1024:65535 -m state --state NEW -j fwd_${ri}_to_e${j}
+#                 iptables -A FORWARD -i ${i} -o ${j}  -p $proto -m state --state NEW -j fwd_${ri}_to_e${j}_allsrc
+      
+#             } # foreach $proto ( "tcp","udp" ) 
+
+#             iptables -A FORWARD -i ${i} -o ${j}  -j fwd_${ri}_to_e${j}_allpro
+      
+
+#       } # if ($i != $j)
+
+#    } # if (${"my_ip_eth".$j})
+
+# } # foreach $j ('1','2','3')
+
+
+# for each $i interface, cycle through all interfaces $j
+# bondX and others
+foreach  $j (keys %ifconfig_more){
+    
+    if ($j eq "eth0"){
+        #print "eth0 already done\n";
+        next;}
+    if (${"my_ip_".$j}){
+        $tempip=${"my_ip_".$j};
+    }
+    else     {
+        $tempip="0.0.0.0/0";
+    }
+  
+    if ($i ne $j) {  
+    print "defining forward rules for ${i} <-> $j\n";      
+
+    # reduced name interface
+    $rj=$j;
+
+    $rj=~ s/^bond/b/;
+    $rj=~ s/^eth/e/;
+    $ri=~ s/^wlan/w/;
+    $rj=~ s/^veth/ve/;
+    $rj=~ s/^veneth/vn/;
+    $rj=~ s/^vlan/vl/;
+    $rj=~ s/^vmbr/vb/;
+    $rj=~ s/^tap/t/;
+
+
+  
+        iptables -N fwd_${ri}_to_${rj}
+        iptables -N fwd_${ri}_to_${rj}_allsrc
+        iptables -N fwd_${ri}_to_${rj}_allpro
+
+             foreach $proto ( "tcp --syn","udp" ) {
+                 iptables -A FORWARD -i ${i} -o ${j}  -p $proto --sport 1024:65535 -m state --state NEW -j fwd_${ri}_to_${rj}
+                 iptables -A FORWARD -i ${i} -o ${j}  -p $proto -m state --state NEW -j fwd_${ri}_to_${rj}_allsrc
+      
+             } # foreach $proto ( "tcp","udp" ) 
+             iptables -A FORWARD -i ${i} -o ${j}  -j fwd_${ri}_to_${rj}_allpro
+    } 
+
+    
+} # foreach  $j (keys %ifconfig_more)
+
+
+foreach $my_hosts ($my_lan_hosts,@my_routed_hosts,@my_more_lan_hosts){
+
+foreach $proto ( "tcp --syn","udp" ) {
+
+    iptables -A FORWARD -i ${i} -o eth0 -s   $my_hosts ! -d $my_hosts -p $proto --sport 1024:65535 -m state --state NEW -j fwd_${ri}_to_e0
+    iptables -A FORWARD -i ${i} -o eth0 -s   $my_hosts ! -d $my_hosts -p $proto                    -m state --state NEW -j fwd_${ri}_to_e0_allsrc
+    iptables -A FORWARD -i eth0 -o ${i} ! -s $my_hosts -d   $my_hosts -p $proto --sport 1024:65535 -m state --state NEW -j fwd_e0_to_${ri}
+    iptables -A FORWARD -i eth0 -o ${i} ! -s $my_hosts -d   $my_hosts -p $proto                    -m state --state NEW -j fwd_e0_to_${ri}_allsrc
+
+	#	vpn 
+    iptables -A FORWARD -i ${i} -o tun+ -s   $my_hosts ! -d $my_hosts -p $proto --sport 1024:65535 -m state --state NEW -j fwd_${ri}_to_tun
+    iptables -A FORWARD -i ${i} -o tun+ -s   $my_hosts ! -d $my_hosts -p $proto                    -m state --state NEW -j fwd_${ri}_to_tun_allsrc
+    iptables -A FORWARD -i tun+ -o ${i} ! -s $my_hosts -d   $my_hosts -p $proto --sport 1024:65535 -m state --state NEW -j fwd_tun_to_${ri}
+    iptables -A FORWARD -i tun+ -o ${i} ! -s $my_hosts -d   $my_hosts -p $proto                    -m state --state NEW -j fwd_tun_to_${ri}_allsrc
+
+  
+    # all
+    iptables -A FORWARD -o ${i} -p $proto --sport 1024:65535 -m state --state NEW -j fwd_all_to_${ri}
+    iptables -A FORWARD -o ${i} -p $proto                    -m state --state NEW -j fwd_all_to_${ri}_allsrc
+
+    iptables -A FORWARD -i ${i} -p $proto --sport 1024:65535 -m state --state NEW -j fwd_${ri}_to_all
+    iptables -A FORWARD -i ${i} -p $proto                    -m state --state NEW -j fwd_${ri}_to_all_allsrc
+
+    
+
+     } # foreach $proto
+
+iptables -A FORWARD -i ${i} -o eth0 -s   $my_hosts ! -d $my_hosts  -j fwd_${ri}_to_e0_allpro
+iptables -A FORWARD -i eth0 -o ${i} ! -s $my_hosts -d   $my_hosts  -j fwd_e0_to_${ri}_allpro
+iptables -A FORWARD -i ${i} -o tun+ -s   $my_hosts ! -d $my_hosts -p icmp -m state --state NEW -j fwd_${ri}_to_tun_allpro
+iptables -A FORWARD -i tun+ -o ${i} ! -s $my_hosts -d   $my_hosts -p icmp -m state --state NEW -j fwd_tun_to_${ri}_allpro
+# all
+iptables -A FORWARD -o ${i}                                               -m state --state NEW -j fwd_all_to_${ri}_allpro
+iptables -A FORWARD -i ${i}                                               -m state --state NEW -j fwd_${ri}_to_all_allpro
+
+} # foreach $my_hosts ($my_lan_hosts,@my_routed_hosts)
+
+
+#} # if (${"my_ip_eth".$i})
+
+} # foreach $i (keys %ifconfig_more) 
+
+
+# forwarding all
+
+
+iptables -N fwd_all
+iptables -N fwd_all_allsrc
+iptables -N fwd_all_allpro
+
+
+
+# forwarding vpn
+
+iptables -N fwd_tun_to_tun
+iptables -N fwd_tun_to_tun_allsrc
+iptables -N fwd_tun_to_tun_allpro
+
+iptables -N fwd_tun_to_e0
+iptables -N fwd_tun_to_e0_allsrc
+iptables -N fwd_tun_to_e0_allpro
+
+
+iptables -N fwd_e0_to_tun
+iptables -N fwd_e0_to_tun_allsrc
+iptables -N fwd_e0_to_tun_allpro
+
+
+# special cases (ipsec, ...)
+iptables -N fwd_eth0
+iptables -N fwd_eth0_allsrc
+iptables -N fwd_eth0_allpro
+
+
+#foreach my $sys (@my_remote_vpn_ips) # removed 2006.09.22  in the rule itself now 
+#{
+# one way only. sysadmin -> server
+
+  foreach $proto ( "tcp --syn","udp" ) {
+       iptables -A FORWARD -i tun+ -o tun+ -p $proto --sport 1024:65535 -m state --state NEW -j fwd_tun_to_tun
+       iptables -A FORWARD -i tun+ -o tun+ -p $proto                    -m state --state NEW -j fwd_tun_to_tun_allsrc
+       iptables -A FORWARD -i tun+ -o eth0 -p $proto --sport 1024:65535 -m state --state NEW -j fwd_tun_to_e0
+       iptables -A FORWARD -i tun+ -o eth0 -p $proto                    -m state --state NEW -j fwd_tun_to_e0_allsrc
+       iptables -A FORWARD -i eth0 -o tun+ -p $proto --sport 1024:65535 -m state --state NEW -j fwd_e0_to_tun
+       iptables -A FORWARD -i eth0 -o tun+ -p $proto                    -m state --state NEW -j fwd_e0_to_tun_allsrc
+       iptables -A FORWARD -i eth0 -o eth0 -p $proto --sport 1024:65535 -m state --state NEW -j fwd_eth0
+       iptables -A FORWARD -i eth0 -o eth0 -p $proto                    -m state --state NEW -j fwd_eth0_allsrc
+
+       iptables -A FORWARD                 -p $proto --sport 1024:65535 -m state --state NEW -j fwd_all
+       iptables -A FORWARD                 -p $proto                    -m state --state NEW -j fwd_all_allsrc
+       
+  }
+
+  iptables -A FORWARD -i tun+ -o tun+ -j fwd_tun_to_tun_allpro
+  iptables -A FORWARD -i tun+ -o eth0 -j fwd_tun_to_e0_allpro
+  iptables -A FORWARD -i eth0 -o tun+ -j fwd_e0_to_tun_allpro
+  iptables -A FORWARD -i eth0 -o eth0 -j fwd_eth0_allpro
+  iptables -A FORWARD                 -j fwd_all
+
+#}	
+
+
+# all (all interfaces)
+
+
+iptables -N fwd_all_to_tun
+iptables -N fwd_all_to_tun_allsrc
+iptables -N fwd_all_to_tun_allpro
+
+iptables -N fwd_tun_to_all
+iptables -N fwd_tun_to_all_allsrc
+iptables -N fwd_tun_to_all_allpro
+
+
+iptables -N fwd_all_to_e0
+iptables -N fwd_all_to_e0_allsrc
+iptables -N fwd_all_to_e0_allpro
+
+iptables -N fwd_e0_to_all
+iptables -N fwd_e0_to_all_allsrc
+iptables -N fwd_e0_to_all_allpro
+
+
+
+foreach $proto ( "tcp --syn","udp" ) {
+iptables -A FORWARD -o tun+ -p $proto --sport 1024:65535 -m state --state NEW -j fwd_all_to_tun
+iptables -A FORWARD -o tun+ -p $proto                    -m state --state NEW -j fwd_all_to_tun_allsrc
+iptables -A FORWARD -i tun+ -p $proto --sport 1024:65535 -m state --state NEW -j fwd_tun_to_all
+iptables -A FORWARD -i tun+ -p $proto                    -m state --state NEW -j fwd_tun_to_all_allsrc
+iptables -A FORWARD -o eth0 -p $proto --sport 1024:65535 -m state --state NEW -j fwd_all_to_e0
+iptables -A FORWARD -o eth0 -p $proto                    -m state --state NEW -j fwd_all_to_e0_allsrc
+iptables -A FORWARD -i eth0 -p $proto --sport 1024:65535 -m state --state NEW -j fwd_e0_to_all
+iptables -A FORWARD -i eth0 -p $proto                    -m state --state NEW -j fwd_e0_to_all_allsrc
+
+}
+iptables -A FORWARD -o tun+                              -m state --state NEW -j fwd_all_to_tun_allpro
+iptables -A FORWARD -i tun+                              -m state --state NEW -j fwd_tun_to_all_allpro
+iptables -A FORWARD -o eth0                              -m state --state NEW -j fwd_all_to_e0_allpro
+iptables -A FORWARD -i eth0                              -m state --state NEW -j fwd_e0_to_all_allpro
+
+
+# POSTROUTING rules
+iptables -t nat -N po_out_eth0
+iptables -t nat -N po_out_eth0_allsrc
+iptables -t nat -N po_out_eth0_allpro
+
+foreach $my_hosts ($my_lan_hosts,@my_routed_hosts){
+iptables -t nat -A POSTROUTING -o eth0 -s   $my_hosts ! -d $my_hosts -p udp --sport 1024:65535 -m state --state NEW -j po_out_eth0
+iptables -t nat -A POSTROUTING -o eth0 -s   $my_hosts ! -d $my_hosts -p tcp --sport 1024:65535 --syn -m state --state NEW -j po_out_eth0
+iptables -t nat -A POSTROUTING -o eth0 -s   $my_hosts ! -d $my_hosts -p udp                    -m state --state NEW -j po_out_eth0_allsrc
+iptables -t nat -A POSTROUTING -o eth0 -s   $my_hosts ! -d $my_hosts -p tcp                    --syn -m state --state NEW -j po_out_eth0_allsrc
+iptables -t nat -A POSTROUTING -o eth0 -s   $my_hosts ! -d $my_hosts                           -m state --state NEW -j po_out_eth0_allpro
+}
+
+
+# postrouting
+#foreach my $i ('1','2','3',keys %ifconfig_vlan_numbers){
+
+foreach $i (keys %ifconfig_more) {
+    #if ($i eq "eth0")
+    #{
+        #print "eth0 already done\n";
+    #    next;
+    #}
+    print "defining postrouting rules for ${i}...\n";
+    
+    # reduced name interface
+    $ri=$i;
+
+    $ri=~ s/^bond/b/;
+    $ri=~ s/^eth/e/;
+    $ri=~ s/^wlan/w/;
+    $ri=~ s/^veth/ve/;
+    $ri=~ s/^veneth/vn/;
+    $ri=~ s/^vlan/vl/;
+    $ri=~ s/^vmbr/vb/;
+    $ri=~ s/^tap/t/;
+
+
+iptables -t nat -N po_out_${ri}
+iptables -t nat -N po_out_${ri}_allsrc
+iptables -t nat -N po_out_${ri}_allpro
+iptables -t nat -A POSTROUTING -o ${ri} -p udp  --sport 1024:65535 -m state --state NEW -j po_out_${ri}
+iptables -t nat -A POSTROUTING -o ${ri} -p tcp  --sport 1024:65535 --syn -m state --state NEW -j po_out_${ri}
+iptables -t nat -A POSTROUTING -o ${ri} -p udp                     -m state --state NEW -j po_out_${ri}_allsrc
+iptables -t nat -A POSTROUTING -o ${ri} -p tcp                     --syn -m state --state NEW -j po_out_${ri}_allsrc
+iptables -t nat -A POSTROUTING -o ${ri}                            -m state --state NEW -j po_out_${ri}_allpro
+
+}
+
+
+

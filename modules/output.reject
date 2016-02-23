@@ -1,0 +1,4 @@
+iptables -A OUTPUT -m limit --limit 1/s --limit-burst 4 -j LOG  --log-prefix "reject output : " --log-level debug
+iptables -A OUTPUT -m limit --limit 50/s --limit-burst 50 -j REJECT
+iptables -A OUTPUT -j DROP
+

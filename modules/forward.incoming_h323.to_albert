@@ -1,0 +1,18 @@
+# h323
+iptables -t nat -A PREROUTING -i eth0  -p tcp --destination-port 1720 -m limit --limit 10/s --limit-burst 10 -j DNAT --to-destination $albert
+# ils
+iptables  -A fwd_e0_to_e1 -p tcp -s $ils_seconix_com --destination-port 1720 -d $albert  -m limit --limit 10/s --limit-burst 10 -j OLACCEPT callback h323
+iptables  -A fwd_e0_to_e1 -p tcp --destination-port 1720 -d $albert  -m limit --limit 10/s --limit-burst 10 -j OLACCEPT h323
+
+iptables -t nat -A PREROUTING -i eth0  -p tcp --destination-port 30000:30010 -m limit --limit 10/s --limit-burst 100 -j DNAT --to-destination $albert
+iptables  -A fwd_e0_to_e1 -p tcp --destination-port 30000:30010 -d $albert  -m limit --limit 10/s --limit-burst 100 -j OLACCEPT h323
+
+iptables -t nat -A PREROUTING -i eth0  -p udp --destination-port 5000:5007 -m limit --limit 100/s --limit-burst 3000 -j DNAT --to-destination $albert
+iptables  -A fwd_e0_to_e1 -p udp --destination-port 5000:5007 -d $albert  -m limit --limit 100/s --limit-burst 3000 -j OLACCEPT h323
+
+iptables -t nat -A PREROUTING -i eth0  -p udp --destination-port 5010:5013 -m limit --limit 10/s --limit-burst 100 -j DNAT --to-destination $albert
+iptables  -A fwd_e0_to_e1 -p udp --destination-port 5010:5013 -d $albert  -m limit --limit 10/s --limit-burst 100 -j OLACCEPT h323
+
+iptables  -A fwd_e1_to_e0 -p tcp --dport $ldap_port -d $ils_seconix_com  -m limit --limit 10/s --limit-burst 100 -j OLACCEPT ldap h323
+
+

@@ -1,0 +1,9 @@
+
+foreach $proto ("tcp","udp"){
+foreach $dns (@dns_provider){
+iptables -A out_eth0 -p $proto -d $dns   --dport 53 -m owner --cmd-owner named --uid-owner 102 -m limit --limit 10/s --limit-burst 60 -j ACCEPT
+}
+# wide
+iptables -A out_eth0 -p $proto  --dport 53 -m owner --cmd-owner named --uid-owner 102 -m limit --limit 10/s --limit-burst 60 -j ACCEPT
+}
+

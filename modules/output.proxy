@@ -1,0 +1,2 @@
+iptables -A out_eth0 -p tcp -m multiport --dports 21,80,443,8000,8080,11371 -m owner --uid-owner proxy -m limit --limit 20/s --limit-burst 200  -j OACCEPT squid
+

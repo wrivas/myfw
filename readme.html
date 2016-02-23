@@ -1,0 +1,223 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<title>myfw</title>
+<link rev="made" href="mailto:root@localhost" />
+</head>
+
+<body style="background-color: white">
+
+<p><a name="__index__"></a></p>
+<!-- INDEX BEGIN -->
+
+<ul>
+
+	<li><a href="#myfw_my_firewall">myfw My Firewall</a></li>
+	<li><a href="#details">details</a></li>
+	<li><a href="#special_configs">special configs</a></li>
+	<li><a href="#installation___download">installation / download</a></li>
+	<li><a href="#requesit">requesit</a></li>
+	<li><a href="#license">license</a></li>
+	<li><a href="#authors___credits">authors / credits</a></li>
+	<li><a href="#usage">usage</a></li>
+	<li><a href="#definitions">definitions</a></li>
+	<li><a href="#files">files</a></li>
+	<li><a href="#bugs">bugs</a></li>
+	<li><a href="#todo">todo</a></li>
+	<li><a href="#screenshot">screenshot</a></li>
+	<li><a href="#changelog">changelog</a></li>
+	<li><a href="#about_myfw">about myfw</a></li>
+</ul>
+<!-- INDEX END -->
+
+<hr />
+<p>
+</p>
+<hr />
+<h1><a name="myfw_my_firewall">myfw My Firewall</a></h1>
+<p>myfw is firewall based on  iptables snipets (modules).
+It helps you to build your iptables firewall.</p>
+<p>A configuration is listing ``modules'', which are
+containing iptables rules. Thoses modules can contain perl
+code, in order to facilitate writing of rules (think foreach @ntp_servers).
+They can also contain raw iptables commands for kick and easy start.
+Configs can be pre-defined, which is useful if you have multiple machines
+that need the same firewall rules.</p>
+<p>myfw also generate ipac-ng rules, 
+according to iptables chains inserted.</p>
+<p>
+</p>
+<hr />
+<h1><a name="details">details</a></h1>
+<p>thoses modules can contain perl code,
+so that you can do :</p>
+<p>foreach $ntp (@ntp_servers){
+iptables -A OUTPUT -d $ntp -j ACCEPT
+}</p>
+<p>they can also contain raw iptables commands :</p>
+<p>iptables -A OUTPUT -d 1.2.3.4 -j ACCEPT</p>
+<p>ipac rule file is /usr/local/etc/fw/ipac.out</p>
+<p>
+</p>
+<hr />
+<h1><a name="special_configs">special configs</a></h1>
+<p>you can write your own modules list in a module named
+config.whatever  . modules written inside this file will be 
+executed.</p>
+<p>
+</p>
+<hr />
+<h1><a name="installation___download">installation / download</a></h1>
+<p>download myfw-xxx.tgz,</p>
+<a href='myfw'>here</a><p>extract in /usr/local/etc
+so that you have :</p>
+<p>/usr/local/etc/fw/base
+/usr/local/etc/fw/modules/</p>
+<p>
+</p>
+<hr />
+<h1><a name="requesit">requesit</a></h1>
+<p>perl</p>
+<p>optional : apt-get install libnet-netmask-perl</p>
+<p>
+</p>
+<hr />
+<h1><a name="license">license</a></h1>
+<a href='myfw/fw/LICENSE'>here</a><p><a href='myfw/fw/LGPL-2.1'>LGPL-2.1 text available here</a><p>
+</p>
+<hr />
+<h1><a name="authors___credits">authors / credits</a></h1>
+<a href='myfw/fw/AUTHORS'>here</a><p>
+</p>
+<hr />
+<h1><a name="usage">usage</a></h1>
+<p>to start :
+./base</p>
+<p>to stop :</p>
+<p>./base stop</p>
+<p>-a : accept default rule instead of drop.
+usefull for debug in case the execution is half borked</p>
+<p>-d : show unprocessed commands (with variables names) (good for debug)
+-e : show iptables commands
+-c : yet another debug : show what is evaluated
+-l : debug parse
+-v : level debug
+-f : don't touch forward  (/proc/sys/net/ipv4/ip_forward) in case of fw failure
+-o : no cmd-owner
+-s &lt;config-file&gt; : use this special config file
+-i : no ipac at all
+old  : no domain ipac (good for slow machines, shorter startup time)
+-i should not use ipac at all (or add another option)
+-r : yet another debug
+-t : use iptables-restore mode (does not work on woody : --sport invalid ..??)
+-n : no execute, just try the script</p>
+<p>-p : print config
+-m &lt;perl-script: execute perl script after definitions
+-m modules/&lt;module&gt; : will load only that module. convenient for punching holes in firewall
+should warn if the module is not listed in config
+-h help</p>
+<pre>
+ a &quot;deprecated module&quot; feature is implemented.
+ #deprecated  in  the module file will show a warning 
+print whole line so you can add some explanation (use &lt;...&gt; instead)</pre>
+<p>install at boot :</p>
+<p>ln -s /usr/local/etc/fw/base /etc/rcS.d/S42fw
+or edit /etc/rcS.d/S42fw (/usr/local/etc/fw/base -t), chmod 755 /etc/rcS.d/S42fw</p>
+<p># OLACCEPT : log, accept, overflow log, reject, drop
+# OACCEPT :       accept, overflow log, reject, drop</p>
+<p>
+</p>
+<hr />
+<h1><a name="definitions">definitions</a></h1>
+<p>in definition :</p>
+<p>standard definitions :</p>
+<p>$hostname, $hostname_ssh_port, $domain is found with hostname -f</p>
+<p>in case the ip is dynamic, write : 
+$hostname_ip=``dynamic'';</p>
+<p>might be defined here :
+$hostname2 (alias sur eth0)
+$hostname_vpn_port
+$lan_hosts_for_hostname</p>
+<p>ex :</p>
+<p>my hostname is albert,</p>
+<p>i can define $albert :</p>
+<p>$albert=``192.168.6.2'';</p>
+<p>if dhcp :</p>
+<p>$albert_ip=``dynamic'';</p>
+<p>if i have a second ip on eth0 :</p>
+<p>$albert2=``192.168.2.2'';</p>
+<p>if i want my_lan_hosts  to be defined :</p>
+<p>$lan_hosts_for_albert=``192.168.6.0/24'';</p>
+<p>
+</p>
+<hr />
+<h1><a name="files">files</a></h1>
+<p>/usr/local/etc/fw/iptables.out</p>
+<p>ipac-ng file : (to be included in ipac.conf :
+rules file = /usr/local/etc/fw/ipac.out)</p>
+<p>/usr/local/etc/fw/ipac.out</p>
+<p>debug ipac-ng files :</p>
+<p>ipac with iptables chains instead of ipac rules
+/usr/local/etc/fw/ipacchains.out</p>
+<p>ipac with iptables chains in comment
+/usr/local/etc/fw/ipacd.out</p>
+<p>ipac with full lenght name of the ipac rule
+/usr/local/etc/fw/ipacnames.out</p>
+<p>ipac add on for munin
+/usr/local/etc/fw/ipacm.out</p>
+<p>real ipac file
+/usr/local/etc/fw/ipac.out</p>
+<p>
+</p>
+<hr />
+<h1><a name="bugs">bugs</a></h1>
+<p>with myfw, you can do anything you want.</p>
+<p>however, already written modules are designed for</p>
+<p>eth0 as primary interface,
+eth1 as lan (as opposed to internet) interface.</p>
+<p>
+</p>
+<hr />
+<h1><a name="todo">todo</a></h1>
+<p>add an option to not use ipac at all (ipac is slow when using a lot  of <code>rules(7k))</code></p>
+<p>add an option to send raw commands, no modules. ex  : ./base -r ``natch - paris (ssh,ping)''</p>
+<p>
+</p>
+<hr />
+<h1><a name="screenshot">screenshot</a></h1>
+<a href='myfw/fw/myfw.png'>here</a><p>
+</p>
+<hr />
+<h1><a name="changelog">changelog</a></h1>
+<p>1.5 : 
+      release focused on speed improvements</p>
+<pre>
+      added the -m option (load a module only, with definitions)
+      (poking holes in the firewall is the typical use of -m)</pre>
+<pre>
+      added the -t option (load rules using iptables-restore)</pre>
+<pre>
+      reduce the loading time by a factor of 4 to 20.</pre>
+<pre>
+      on my box, 3400 rules : from 1min 50 to 3 sec.</pre>
+<pre>
+      wc -l iptables.out : 3400</pre>
+<p>./base  21.82s user 46.07s system 61% cpu 1:50.51 total</p>
+<p>./base -t  0.98s user 0.37s system 46% cpu 2.920 total</p>
+<p>1.2 : first public release</p>
+<p>
+</p>
+<hr />
+<h1><a name="about_myfw">about myfw</a></h1>
+<p>I created myfw because i was missing a tool which would allow
+me to do any thing with iptables, yet with possibilities to
+write easily efficient iptables rules.</p>
+<p>shorewall was the closest i could try ; i tried, and 
+for what i wanted to do, it limited me. (see OLACCEPT target)</p>
+<p>(shorewall itself is good, but is more high level than myfw)</p>
+<p>links to myfw :</p>
+<p><a href="http://directory.fsf.org/security/firewall/myfw.html">http://directory.fsf.org/security/firewall/myfw.html</a></p>
+
+</body>
+
+</html>

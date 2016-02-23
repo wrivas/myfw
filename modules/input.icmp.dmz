@@ -1,0 +1,4 @@
+foreach $icmp_ip ( @dmz ) {
+iptables -A INPUT -i eth0 -p icmp -s $icmp_ip -d $myip --icmp-type echo-request -m limit --limit 1/s --limit-burst 10 -j OLACCEPT ping dmz
+}
+

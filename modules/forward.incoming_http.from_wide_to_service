@@ -1,0 +1,5 @@
+foreach $w (@my_webservers){
+foreach $int ("e0","tun"){
+iptables -A fwd_${int}_to_e1 -d $$w -p tcp -m multiport --dports ${$w."_http_ports"}  -m limit --limit 20/s --limit-burst 500 -j OACCEPT http $w
+}
+}

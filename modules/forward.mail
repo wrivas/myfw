@@ -1,0 +1,2 @@
+iptables -A fwd_e1_to_e0 -p tcp --dport 25  -m limit --limit 6/m --limit-burst 20 -j OLACCEPT mail out
+iptables -A fwd_e1_to_e0 -p tcp --dport 587  -m limit --limit 6/m --limit-burst 20 -j OLACCEPT mail out

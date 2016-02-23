@@ -1,0 +1,2 @@
+iptables -A in_eth1  -p tcp --dport 80 -m limit --limit 10/s --limit-burst 200  -j OLACCEPT http
+

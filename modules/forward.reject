@@ -1,0 +1,50 @@
+
+# bof, on a l'impression que ca vient du host et non du fw
+#iptables -A FORWARD -p tcp -m limit --limit 10/s --limit-burst 15 -j REJECT --reject-with tcp-reset
+
+
+##### VPN 
+
+# VPN
+
+
+iptables -A FORWARD -i tun+  -m limit --limit 1/s --limit-burst 15 -j LOG --log-level debug --log-prefix "forward reject from vpn: "
+iptables -A FORWARD -i tun+  -m limit --limit 10/s --limit-burst 15 -j REJECT
+iptables -A FORWARD -i tun+  -j DROP
+iptables -A FORWARD -o tun+  -m limit --limit 1/s --limit-burst 15 -j LOG --log-level debug --log-prefix "forward reject to vpn: "
+iptables -A FORWARD -o tun+  -m limit --limit 10/s --limit-burst 15 -j REJECT
+iptables -A FORWARD -o tun+  -j DROP
+
+
+
+#### DMZ eth0 / eth1
+
+# FROM MY LAN
+
+if ($my_ip_eth1){
+
+iptables -A FORWARD -i eth1 -o eth0 -s $my_lan_hosts ! -d $my_lan_hosts -m limit --limit 1/s --limit-burst 15 -j LOG --log-level debug --log-prefix "forward reject from lan: "
+iptables -A FORWARD -i eth1 -o eth0 -s $my_lan_hosts ! -d $my_lan_hosts -m limit --limit 10/s --limit-burst 15 -j REJECT
+iptables -A FORWARD -i eth1 -o eth0 -s $my_lan_hosts ! -d $my_lan_hosts -j DROP
+
+# MY FRIENDS (dmz, etc)
+# add private to friendly reject ipsec ips   (which are comming on eth0)
+foreach my $f (@private1918){
+iptables -A FORWARD   -s $f  -m limit --limit 1/s --limit-burst 15 -j LOG --log-level debug --log-prefix "forward reject : "
+iptables -A FORWARD   -s $f  -m limit --limit 10/s --limit-burst 15 -j REJECT
+iptables -A FORWARD   -s $f   -j DROP
+}
+foreach my $f (@my_routed_hosts,@my_more_lan_hosts){
+iptables -A FORWARD   -s $f  -m limit --limit 1/s --limit-burst 15 -j LOG --log-level debug --log-prefix "fwd reject : "
+iptables -A FORWARD   -s $f  -m limit --limit 10/s --limit-burst 15 -j REJECT
+iptables -A FORWARD   -s $f   -j DROP
+}
+
+
+}
+
+
+#FINAL DROP
+iptables -A FORWARD -m limit --limit 30/m --limit-burst 5 -j LOG --log-level debug --log-prefix "forward drop :"
+iptables -A FORWARD -j DROP
+

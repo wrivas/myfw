@@ -1,0 +1,7 @@
+foreach $eh (@evil_hosts)
+{
+iptables -A FORWARD -s $eh -d $dekla   -m limit --limit 6/m --limit-burst 10  -j LOG --log-level debug --log-prefix 'drop evil: '
+iptables -A FORWARD -s $eh  -d $dekla -j DROP
+iptables -A FORWARD -d $eh -s $dekla  -m limit --limit 6/m --limit-burst 10  -j LOG --log-level debug --log-prefix 'drop dst evil: '
+iptables -A FORWARD -d $eh -s $dekla -j DROP
+}

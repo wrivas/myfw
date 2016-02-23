@@ -1,0 +1,1 @@
+iptables -A INPUT -i eth3 -d 255.255.255.255 -p udp -m multiport --dports 67,68 -j OLACCEPT dhcp bcast

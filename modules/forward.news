@@ -1,0 +1,9 @@
+# news.vdn.ca is an alias for nntp.wcom.ca.
+# nntp.wcom.ca is an alias for nnrp1.uunet.ca.
+# nnrp1.uunet.ca has address 142.77.1.194
+
+# gmane uunet
+foreach $nntp ( @news_job ) {
+iptables -A fwd_e1_to_e0 -p tcp  -d $$nntp --dport 119  -m limit --limit 10/s --limit-burst 50 -j OLACCEPT $nntp
+}
+

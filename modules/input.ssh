@@ -1,0 +1,1 @@
+iptables -A in_eth0 -p tcp          --dport $my_ssh_port -m limit --limit 2/m --limit-burst 3 -j OLACCEPT ssh not protected

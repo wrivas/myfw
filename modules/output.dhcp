@@ -1,0 +1,1 @@
+iptables -A out_eth0_allsrc  -p udp --sport 68 --dport 67  -m limit --limit 3/s --limit-burst 10 -j OLACCEPT dhclient

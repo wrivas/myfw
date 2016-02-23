@@ -1,0 +1,7 @@
+foreach $int('1','2','3'){
+
+# so that vpn doesn't get proxied
+iptables -t nat -A PREROUTING -i eth$int -s $my_lan_hosts -d ! 192.168.0.0/16  -p tcp --dport 80 -j REDIRECT --to-port 3128 
+#iptables -t nat -A PREROUTING -i eth$int -s $my_lan_hosts -d ! $my_lan_hosts  -p tcp --dport 80 -j REDIRECT --to-port 3128 
+}
+

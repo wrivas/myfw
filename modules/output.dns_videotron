@@ -1,0 +1,5 @@
+foreach my $dns (@dns_videotron_cable){
+iptables -A out_eth0 -p udp -d $dns   --dport 53  -m limit --limit 3/s --limit-burst 60 -j OACCEPT dns
+iptables -A out_eth0 -p tcp -d $dns   --dport 53  -m limit --limit 3/s --limit-burst 60 -j OLACCEPT dns tcp
+}
+

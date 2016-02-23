@@ -1,0 +1,11 @@
+
+# no state new ... udp is more or less stateless
+# we don't want to be flooded by a single connexion
+# we need qos to do better than below
+
+foreach $proto ("tcp","udp"){
+iptables -A in_eth1_allsrc -p $proto            --dport 53 -m limit --limit 1/h  -j  LOG --log-level debug  --log-prefix "dns eth1 $proto: "
+iptables -A in_eth1_allsrc -p $proto            --dport 53 -m limit --limit 3/s --limit-burst 50  -j ACCEPT
+iptables -A in_eth1_allsrc -p $proto            --dport 53 -m limit --limit 6/m  -j LOG --log-level debug  --log-prefix "oflow dns eth1  $proto: "
+iptables -A in_eth1_allsrc -p $proto            --dport 53 -j DROP
+}

@@ -1,0 +1,4 @@
+# telnet
+
+iptables -A OUTPUT -p tcp  -m owner --uid-owner 1000 --cmd-owner telnet -m limit --limit  1/s --limit-burst 10  -j OLACCEPT telnet xavier
+

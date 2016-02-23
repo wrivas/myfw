@@ -1,0 +1,8 @@
+
+# ntp servers : time.nrc.ca tock.utoronto.ca ntp1.cmc.ec.gc.ca clock.redhat.com
+#foreach $ntpserver ( "132.246.168.164","132.246.168.148","128.100.100.128","199.212.17.15","66.187.233.4","140.239.15.7","142.135.8.50","18.26.4.105","158.121.104.4","208.184.49.9","199.212.17.61","18.145.0.30","192.5.41.209","137.146.210.250" ) {
+foreach $ntpserver ( @ntp_servers ) {
+iptables -A fwd_e1_to_e0_allsrc -p udp -d $ntpserver --dport 123 -m limit --limit 10/s --limit-burst 50 -j OLACCEPT ntp
+}
+
+
