@@ -1,0 +1,452 @@
+=pod
+
+=head1 myfw My Firewall
+
+myfw is firewall easy to write rules and optionnal iptables snipets (modules).
+It helps you to build your iptables firewall.
+
+
+A configuration is listing "modules", which are
+containing iptables rules. Thoses modules can contain perl
+code, in order to facilitate writing of rules (think foreach @ntp_servers).
+They can also contain raw iptables commands for kick and easy start.
+Configs can be pre-defined, which is useful if you have multiple machines
+that need the same firewall rules. 
+
+myfw also generate ipac-ng rules, 
+according to iptables chains inserted.
+
+=head1 generic rules
+
+you can define generic rules that will apply to multiple hosts.
+
+ex : jupiter - neptune (http)
+
+this single will create rules for authorising http from jupiter to neptune, and every firewall between them (firewall knows if it should apply the rule based on its routes)
+
+
+modifiers :
+
+nl,np,nsp,nlim,force=hostname,protocol:50,nsip,noint,noint4nat
+
+ jupiter - neptune (nl:http)  # no logging, no limits
+jupiter - neptune (np) # logging, no ports
+jupiter - neptune (nlim:http) # no limits
+ntp or port 123 : to source ports
+jupiter - neptune (nsp:http) : no source ports
+jupiter - neptune (protocol:50,protocol:51)
+jupiter -neptune (force=pluton:ping) # will force to load the rule even if it's not concerned
+jupiter -neptune (nsip:http) no source ip (to use when some dynamic ip unpredictable is obtained)
+
+no int : do not force incoming interface
+
+nsip : no source ip
+
+=head1 details
+
+thoses modules can contain perl code,
+so that you can do :
+
+foreach $ntp (@ntp_servers){
+iptables -A OUTPUT -d $ntp -j ACCEPT
+}
+
+they can also contain raw iptables commands :
+
+iptables -A OUTPUT -d 1.2.3.4 -j ACCEPT
+
+ipac rule file is /usr/local/etc/fw/ipac.out
+
+
+=head1 initialisation
+
+$hostname is mandatory
+
+$my_domain and $$my_domain must exist
+
+could be fixed by forced like this :  $my_domain="example.net" if $hostname eq "jupiter";
+
+
+$myip_eth1 must be the gateway (.1) if this is a routing fw
+
+=head1 bugs
+
+2013.12.06 needs a protection/lockfile to not run multiple times at the same time (will overrite iptables-restore)
+
+2012.09.26 space at the end of a rule will make it fail
+
+2011.03.30 @hostname_eth0_X_additionnal is good only for vlan ips, aliases dont work yet, use $hostname2 for now
+
+calliope is a firewall, air is the name of the network behind calliope :
+
+air - calliope_eth1 (80) will generate a rule with -A fwd_eth1 in it, which is not good
+air - calliope (80) will correctly generate the rule -A in_eth1
+
+
+=head1 special configs
+
+you can write your own modules list in a module named
+config.whatever  . modules written inside this file will be 
+executed.
+
+=head1 installation / download
+
+download myfw-xxx.tgz,
+
+=for html <a href='myfw'>here</a>
+
+extract in /usr/local/etc
+
+so that you have :
+
+/usr/local/etc/fw/base
+
+/usr/local/etc/fw/modules/
+
+cd /usr/local/etc/fw
+
+
+cp modules/definitions.example modules/definitions
+
+=head1 requesit
+
+perl
+
+
+apt-get install libnet-netmask-perl
+
+
+=head1 license
+
+=for html <a href='myfw/fw/LICENSE'>here</a>
+
+=for html <p><a href='myfw/fw/LGPL-2.1'>LGPL-2.1 text available here</a>
+
+=head1 authors / credits
+
+=for html <a href='myfw/fw/AUTHORS'>here</a>
+
+=head1 usage
+
+
+to start :
+./base 
+
+to stop : 
+
+./base stop
+
+
+to stop and keep forward the existing connexions on the fw (dropping the others)
+
+./base -f stop
+
+=head1 options
+
+-e : show iptables commands
+-d : show unprocessed commands (with variables names) (good for debug) . also try ./base -G -d 2>&1 |less
+-t : use iptables-restore mode (default now)
+-T : do NOT use iptables-restore mode, invoke iptables binary line by line
+-n : no execute,dry-run,  just try the script
+-m modules/<module> : will load only that module. convenient for punching holes in firewall
+-R raw command : ./base -R "natch - wide (ping)" ;   ./base -nR "display('hosts_8d')"  
+"-D rules" : show rules 
+-p : definitions only
+
+=head1 developer options
+
+-G debug generic parse (natch - pecos(ping)) . also try rc modules/rules.cloud9 |xargs -i{} ./base -n -R "$i"
+
+-a : accept default rule instead of drop.
+usefull for debug in case the execution is half borked
+
+-c : yet another debug : show what is evaluated
+-l : debug parse
+-v : level debug
+-f : don't touch forward  (/proc/sys/net/ipv4/ip_forward) in case of fw failure
+-o : no cmd-owner
+-s <config-file> : use this special config file
+-i : should use ipac  (or add another option) (this was switched recently, ipac)
+-r : yet another debug
+-p : print config
+-m <perl-script: execute perl script after definitions
+-w : dont cd to /usr/local/etc/fw, use current directory (symlink config from /usr/local/etc/fw). useful to edit fw as a user
+
+should warn if the module is not listed in config
+-h help
+-q quiet  : you can use -q and -n together to test if there is no empty variables
+
+
+-F diff mode # not working
+-j debug diff mode / debug_reformat for iptables-restore file
+-I use iptables -I instead of -A
+
+debug rules : 
+
+./base -n -D rules |tee -a base-n-D-rules`date +.%Y.%m.%d.%H.%M.%S`
+
+# compare 2 sets :
+iptables-save |perl -pe 's/\[\d+.*//' |egrep -v '(2014)' > /tmp/1
+iptables-save |perl -pe 's/\[\d+.*//' |egrep -v '(2014)' |md5sum
+for i in nat filter mangle; do echo --------------$i---------------; iptables -n -L -t $i;echo;echo;done > iptables
+see iptables-L-all-tables-output-tmp
+
+iptables-save |perl -pe 's/\[\d+.*//' |egrep -v '(2014)' | tee  /tmp/1 | md5sum
+# load from local directory instead of /usr/local/etc/fw
+./base -w;iptables-save |perl -pe 's/\[\d+.*//' |egrep -v '(2014)' | tee  /tmp/2 | md5sum 
+
+ a "deprecated module" feature is implemented.
+ #deprecated  in  the module file will show a warning 
+print whole line so you can add some explanation (use <...> instead)
+
+install at boot :
+
+ln -s /usr/local/etc/fw/myfw-if-up-script /etc/network/if-up.d/
+
+or ln -s /usr/local/etc/fw/base /etc/rcS.d/S42fw (not innserv compatible)
+
+or insert '/usr/local/etc/fw/base start' somewhere in your startup scripts (/etc/rc.local)
+
+
+# OLACCEPT : log, accept, overflow log, reject, drop (log when accept, log when overflow)
+
+iptables -A out_eth0 -p tcp -d $jupiter -m multiport --dports  443 -m limit --limit 100/s --limit-burst 40  -j OLACCEPT https
+
+# OACCEPT :       accept, overflow log, reject, drop (log only if overflow)
+# LOGACCEPT : log, accept no limits
+
+
+
+=head1 definitions - getting started
+
+in definition : 
+
+standard definitions :  
+
+$hostname, $hostname_ssh_port, $domain is found with hostname -f
+
+in case the ip is dynamic, write : 
+$hostname_ip="dynamic";
+
+might be defined here :
+$hostname2 (alias sur eth0)
+
+ex : 
+
+my hostname is albert,
+
+i can define $albert :
+
+$albert="192.168.6.2";
+
+my ssh port :
+
+$albert_ssh_port="22";
+
+if dhcp :
+
+$albert_ip="dynamic";
+
+if i have a second ip on eth0 :
+
+$albert2="192.168.2.2";
+
+if i want my_lan_hosts  to be defined :
+
+$lan_hosts_for_albert="192.168.6.0/24";
+
+=head1  files
+
+/usr/local/etc/fw/iptables.out
+
+ipac-ng file : (to be included in ipac.conf :
+rules file = /usr/local/etc/fw/ipac.out)
+
+/usr/local/etc/fw/ipac.out
+
+debug ipac-ng files : 
+
+ipac with iptables chains instead of ipac rules
+/usr/local/etc/fw/ipacchains.out
+
+ipac with iptables chains in comment
+/usr/local/etc/fw/ipacd.out
+
+ipac with full lenght name of the ipac rule
+/usr/local/etc/fw/ipacnames.out
+
+ipac add on for munin
+/usr/local/etc/fw/ipacm.out
+
+real ipac file
+/usr/local/etc/fw/ipac.out
+
+
+=head1 bugs
+
+with myfw, you can do anything you want.
+
+however, already written modules are designed for 
+
+eth0 as primary interface,
+eth1 as lan (as opposed to internet) interface.
+
+not true anymore with so called "rules" 2006.06.20
+
+sometimes this happens : 
+
+Unquoted string "dev" may clash with future reserved word at (eval 1391) line 1.
+Unquoted string "https" may clash with future reserved word at (eval 1391) line 1.
+error : syntax error at (eval 1391) line 1, near "214.43.66.52 ("
+ 
+ code : dev - 214.43.66.52 (https)
+
+rewrite the line again, manually (vs cut/paste). i suspect wierd characters
+
+space at the end of the line !! it causes problems. 2011.04.28
+
+=head1 todo
+
+2015.06.23 get rid of the my_domain mandatory
+2015.03.18 use iptables-apply - a safer way to update iptables remotely instead of iptables-restore, optionnaly
+2015.03.17 aliases should go to the standard chain, not eth0-blabla
+2015.02.04 new parameter : reload-from-previous-file. default at start  ?
+2014.08.29 new keyword : only. ex: only=jupiter for jupiter related only rules (in case we want to add rule in shared/general rule file for convenience)
+2014.03.10 do not write iptables files with stop
+2014.01.10 wait for lock to forbid double run that will create a corrupted iptables-restore
+2013.11.18 if error, print it in history too. and pid in history too.
+2012.11.29 vlan alias eth0.4:new breaks the eth0.4 rule by replacing the standard ip with  aliased ip 
+2011.11.22 optionnally call iptables-apply (a safer way to update iptables remotely), which will ask confirmation
+2011.05.28 quiet mode, print modules only mode, print only unsplitted rules mode
+2011.04.28 remove spaces at the end of the line (see bug 2011.04.28)
+2010.12.16 fwd_e1.227_to_e0 should be befor fwd_e1.227_to_all (usage : reject in fwd_e1.227_to_e0). if 227_to_all is before, it will go this way (roc - wide (113))
+2010.11.16 print date at launch and date at stop
+2010.11.09 natch ! dekla (np) : reject all  . choisir un bon delimiter
+2010.11.09 OREJECT/OLREJECT (ala OACCEPT)
+2010.09.15 print line executed in comment in iptables file (ex : # neptune - jupiter(80) before the iptable rule)
+2010.08.24 no destination ip (ala noint)
+2010.06.04 # eq_priv  small name for forward.on for the 29 log limit in iptables. need to fix that 2010.06.04.
+2009.06.11 add a limit field to limit the nb of connexions (now the default is 40/s 100 burst) : mail especially
+2009.03.16 add force:hostname field (;-)  to force a fw to be concerned about a praticular rule done 2009.04.14
+2009.03.16 add int:tun0 field to force a route to go through a particular interface (tun for ex) # no. please reload fw when new interfaces are comming up (or simply reload firewall in case a new int is brought up). BUT : could be usefull for forcing free for all lan to the internet and not to others lan
+2009.03.02 add -i or something for interactive, if no respons, will load old rulses (in case ssh connexion get cut off)
+2008.09.19  add comments in iptables.out (especially from the initial rules, neptune -jupiter(http) )
+2008.09.19  gprs_rogers - blara (1163) : should print gprs_rogers (instead of ?)
+2008.09.19  arthur - host_vpn (noint)  # would be no interfaces
+2008.09.04  wide - bal2 (1988) - fedsolic(2045) would be nice
+2008.09.04  wide - bal2 - fedsolic(1903) on naum should do wide - athur2 (2045) instead of wide  - fedsolic
+
+2008.09.10  ? waiting for nat to be implemented : usine -trivia | - 70.81.74.81(43099)   ou usine -trivia (nat) - 70.81.74.81(43099)
+  
+2008.09.04  jupiter - ip,ip,ip should work
+
+
+2008.09.04   no need for iptables-restore if failing on iptables-restore (only, not the iptables "standard")
+
+2007.05.03  verifier que stop marche bien
+
+2006.11.08  dmz_in, usine_in, usine(in), or anything so that usine(in) -> dmz(in) works . emris -> dmz_in (ping), dmz_in -> consus (nut), dmz_in -> roc (smtp)... etc
+
+2006.10.04  no limit and log,  
+
+2006.10.04  need a keyword for  log only oflow (OLACCEPT)
+
+2007.08.24 few rules files : rules.internal, rules.public
+
+2007.08.23 net_usine, host_natch, hosts_sysadmins, nets_cloud, 
+
+
+host_pax_acmon
+host_pax est un groupe de hosts...
+i'd rather use net_usine_all , one rule in firewall instead of many for each host
+
+# munin. should be nets_8d. but then the host (ex : gadar) wont include it self
+
+2007.04.20 usine - bunip (53) : apply if host is in usine... ? or not ?
+usine - gaia (samba, nfs) : we don't want this to happen for the dhcp server
+
+2006.06.20  -t default option
+
+2006.06.06  db_cloud_dev="jason"  : db_cloud_dev is not interpreted ; db_cloud_dev="jason,tcd_db"  : works.
+need to check if db_cloud_dev resolv to something before looking for ssh port
+
+
+2005 add an option to not use ipac at all (ipac is slow when using a lot  of rules(7k))
+
+2005 diff mode
+
+
+
+no need to restore with -t : failed import leaves it as is ? : yes, don't restore, it's fine already ! 2006.06.16
+
+
+
+=head1 screenshot
+
+=for html <a href='myfw/fw/myfw.png'>here</a>
+
+
+=head1 changelog
+
+2012.12.04 added histroy feature (calls to base are appended to a file named "history") 
+
+2009.07.08 added nsip field for no source ip
+
+2009.03.16 add force:hostname field (;-)  to force a fw to be concerned about a praticular rule (in particular : eth0 -> tun, not usual) 
+
+2006.10.04  if startup and fail, stop (ARGV[0] = start).
+
+2006.07.04 add flags for :   no limit nlim , no log , no ports  np : 
+
+natch - bunip (nl:u:53) nl : no log no limit
+
+natch - bunip (np) no ports (but still with source port > 1024, icmp not included)
+
+2006.06.20 add a option (-I) to create rules with -I instead of -A (ideal for quick hole punching), warning, this will 
+fail with logging rules, -I place the rule at the top. works great with nl keyword
+
+2006.06.20  no fw with variable (ie no_fw_for_tvm_as)
+
+-i reverse. -i : use ipac
+
+diff mode
+
+
+generic hosts to hosts firewalling 
+
+
+an option to send raw commands, no modules. ex  : ./base -R "natch - paris (ssh,ping)"
+
+1.5 : 
+      release focused on speed improvements
+
+      added the -m option (load a module only, with definitions)
+      (poking holes in the firewall is the typical use of -m)
+
+      added the -t option (load rules using iptables-restore)
+
+      reduce the loading time by a factor of 4 to 20.
+
+      on my box, 3400 rules : from 1min 50 to 3 sec.
+
+      wc -l iptables.out : 3400
+
+./base  21.82s user 46.07s system 61% cpu 1:50.51 total
+
+./base -t  0.98s user 0.37s system 46% cpu 2.920 total
+
+1.2 : first public release
+
+=head1 about myfw
+
+
+I created myfw because i was missing a tool which would allow
+me to do any thing with iptables, yet with possibilities to
+write easily efficient iptables rules.
+
+shorewall was the closest i could try ; i tried, and 
+for what i wanted to do, it limited me. (see OLACCEPT target)
+
+(shorewall itself is good, but is more high level than myfw)
+
+
