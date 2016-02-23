@@ -42,6 +42,8 @@ no int : do not force incoming interface
 
 nsip : no source ip
 
+B<attention : with this rules, you use groups, groups of groups. each line will generate 5 iptables rules (log, accept, log reject, reject, drop). so the total number of rules can reach high number (eg 100 000 + iptables rules)>
+
 =head1 details
 
 thoses modules can contain perl code,
