@@ -664,7 +664,7 @@ my $should_restore_if_crash=0;
 my $ruleset_is_too_big_to_fit_twice_in_ram=0;
 
 #&execute ($file); # post_death test
- if ($hostname =~ /(natcho|alberto|mercuryo|avaiki|fortuna|fw1_4)$/)
+ if ($hostname =~ /(natcho|alberto|mercuryo|avaiki|fw1_4)$/)
 {
     $ruleset_is_too_big_to_fit_twice_in_ram=1;
     #$should_restore_if_crash=1;
